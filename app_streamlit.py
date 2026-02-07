@@ -298,7 +298,7 @@ if uploaded_file:
         chart = alt.Chart(df_chart).mark_bar(cornerRadiusEnd=4).encode(
             x=alt.X('enzyme', title='Enzyme', sort='-y'),
             y=alt.Y('yield_pct', title='Carbon Yield (%)', scale=alt.Scale(domain=[0, 100])),
-            color=alt.Color('yield_pct', scale=alt.Scale(domain=[0, 100], range=['#FFE0B2', '#E65100']), legend=None),
+            color=alt.Color('yield_pct', scale=alt.Scale(domain=[0, 100], range=['#90CAF9', '#1565C0']), legend=None),
             tooltip=['enzyme', 'yield_pct', 'conversion_pct', 'product_carbon']
         ).properties(
             height=350,
