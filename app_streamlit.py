@@ -42,6 +42,21 @@ def get_sugar_type(name):
         return 'C4'
     return 'C6'
 
+def build_rt_reference(standard_df, compound_col='Compound', rt_col='Retention_Time'):
+    rt_ref = {}
+    for _, row in standard_df.iterrows():
+        compound = row.get(compound_col)
+        rt = row.get(rt_col)
+        if pd.notna(rt) and pd.notna(compound):
+            rt_ref[round(float(rt), 3)] = str(compound).strip()
+    return rt_ref
+
+def match_compound_by_rt(rt, rt_ref, tolerance=0.15):
+    for ref_rt, compound in rt_ref.items():
+        if abs(float(rt) - ref_rt) <= tolerance:
+            return compound
+    return None
+
 def export_to_excel(results, c4_response, gald_response):
     """Export results to Excel"""
     output = BytesIO()
@@ -166,10 +181,66 @@ if uploaded_file:
                 reaction_col_map['enzyme'] = col
             elif 'area' in col_lower or '峰面积' in col:
                 reaction_col_map['area'] = col
+            elif 'rt' in col_lower or 'retention' in col_lower or '保留时间' in col:
+                reaction_col_map['rt'] = col
             elif 'compound' in col_lower or '物质' in col or '对应物质' in col:
                 reaction_col_map['compound'] = col
-        
-        # ============ Build Standard Curves ============
+
+        # ============ Build RT Reference from Standard Curve ============
+        rt_col = summary_col_map.get('compound', 'Compound')
+        rt_time_col = 'Retention_Time'
+        if rt_time_col not in standard_df.columns:
+            for col in standard_df.columns:
+                if 'rt' in str(col).lower() or 'retention' in str(col).lower():
+                    rt_time_col = col
+                    break
+        rt_ref = build_rt_reference(standard_df, compound_col=rt_col, rt_col=rt_time_col)
+
+        if rt_ref:
+            st.info(f"RT Reference: {len(rt_ref)} compounds")
+
+        # ============ Parse Reaction Data ============
+        if 'enzyme' not in reaction_col_map or 'area' not in reaction_col_map:
+            st.error("Required columns not found: Enzyme Name, Peak Area")
+            st.stop()
+
+        # Check if Compound column exists
+        has_compound = 'compound' in reaction_col_map
+        has_rt = 'rt' in reaction_col_map or 'Retention_Time' in reaction_df.columns
+
+        if not has_compound and not has_rt:
+            st.error("Required column not found: Compound or Retention_Time")
+            st.stop()
+
+        reactions = {}
+        current_enzyme = None
+
+        for idx, row in reaction_df.iterrows():
+            enzyme = row.get(reaction_col_map.get('enzyme'))
+            if pd.notna(enzyme) and str(enzyme).strip() != '':
+                current_enzyme = str(enzyme).strip()
+                reactions[current_enzyme] = {'products': [], 'GALD': 0}
+
+            substance = row.get(reaction_col_map.get('compound')) if has_compound else None
+
+            # If compound is missing, try RT matching
+            if (not pd.notna(substance) or str(substance).strip() == '') and has_rt and current_enzyme:
+                rt_val = row.get(reaction_col_map.get('rt')) or row.get('Retention_Time')
+                if pd.notna(rt_val):
+                    substance = match_compound_by_rt(rt_val, rt_ref, tolerance=0.15)
+
+            if pd.notna(substance) and current_enzyme:
+                peak = row[reaction_col_map['area']]
+                substance = str(substance).strip()
+
+                if substance == 'GALD':
+                    reactions[current_enzyme]['GALD'] = peak
+                else:
+                    reactions[current_enzyme]['products'].append({'name': substance, 'peak': peak})
+
+        if not reactions:
+            st.error("Reaction data not found")
+            st.stop()
         c4_sugar_names = ['Erythrose', 'Threose', 'Erythrulose', '赤藓糖', '苏阿糖', '赤藓酮糖']
         c4_mask = standard_df[summary_col_map['compound']].isin(c4_sugar_names)
         c4_standards = standard_df[c4_mask]
