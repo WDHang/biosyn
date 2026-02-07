@@ -170,7 +170,7 @@ if uploaded_file:
                 reaction_col_map['compound'] = col
         
         # ============ Build Standard Curves ============
-        c4_sugar_names = ['Sorbose', 'Erythrose', 'Erythrulose', '赤藓糖', '苏阿糖', '赤藓酮糖']
+        c4_sugar_names = ['Erythrose', 'Threose', 'Erythrulose', '赤藓糖', '苏阿糖', '赤藓酮糖']
         c4_mask = standard_df[summary_col_map['compound']].isin(c4_sugar_names)
         c4_standards = standard_df[c4_mask]
 
