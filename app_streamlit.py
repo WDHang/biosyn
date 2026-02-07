@@ -36,8 +36,7 @@ def get_carbon_fraction(name):
     return db['carbon'] * 12 / db['mw']
 
 def get_sugar_type(name):
-    """Return 'C4' or 'C6' based on compound name"""
-    c4_sugars = ['Erythrose', 'Threose', 'Erythrulose']
+    c4_sugars = ['Erythrose', 'Threose', 'Erythrulose', '赤藓糖', '苏阿糖', '赤藓酮糖']
     if name in c4_sugars:
         return 'C4'
     return 'C6'
