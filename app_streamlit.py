@@ -266,13 +266,19 @@ if uploaded_file:
             if not has_compound or (pd.notna(substance) and str(substance).strip() == ''):
                 rt_val = row.get(rxn_rt_col)
                 if pd.notna(rt_val):
+                    best_match = None
+                    best_dev = None
                     for compound, match in rt_matches.items():
                         dev = float(rt_val) - match['std_rt']
-                        if abs(dev) <= tolerance:
-                            substance = compound
-                            is_predicted = True
-                            rt_deviation = round(dev, 6)
-                            break
+                        abs_dev = abs(dev)
+                        if abs_dev <= tolerance:
+                            if best_match is None or abs_dev < best_dev:
+                                best_match = compound
+                                best_dev = abs_dev
+                                rt_deviation = round(dev, 6)
+                    if best_match:
+                        substance = best_match
+                        is_predicted = True
                     else:
                         substance = 'Unknown'
 
