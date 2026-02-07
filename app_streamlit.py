@@ -152,7 +152,7 @@ if uploaded_file:
         # Summary sheet column mapping
         for col in standard_df.columns:
             col_lower = str(col).lower().strip()
-            if '4c' in col_lower or 'standard' in col_lower:
+            if col_lower == 'compound' or '4c' in col_lower or 'standard' in col_lower:
                 summary_col_map['compound'] = col
             elif 'area' in col_lower or '峰面积' in col:
                 summary_col_map['area'] = col
