@@ -17,7 +17,6 @@ MOLECULAR_DB = {
     'Erythrose': {'mw': 120.10, 'carbon': 4},
     'Threose': {'mw': 120.10, 'carbon': 4},
     'Erythrulose': {'mw': 120.10, 'carbon': 4},
-    'Sorbose': {'mw': 120.10, 'carbon': 4},
     'Glucose': {'mw': 180.16, 'carbon': 6},
     'Sorbose': {'mw': 180.16, 'carbon': 6},
     'Tagatose': {'mw': 180.16, 'carbon': 6},
