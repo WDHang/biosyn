@@ -21,6 +21,8 @@ MOLECULAR_DB = {
     '山梨糖': {'mw': 180.16, 'carbon': 6},
     '阿洛糖': {'mw': 180.16, 'carbon': 6},
     '阿洛酮糖': {'mw': 180.16, 'carbon': 6},
+    '果糖': {'mw': 180.16, 'carbon': 6},
+    '甘露糖': {'mw': 180.16, 'carbon': 6},
 }
 
 def get_carbon_fraction(name):
@@ -47,34 +49,58 @@ if uploaded_file:
         summary_df = pd.read_excel(xl, sheet_name='汇总')
         reaction_df = pd.read_excel(xl, sheet_name='反应数据')
         
-        # 构建标准曲线
-        c4_standards = summary_df.iloc[0:3]
+        # 清理列名中的空格
+        summary_df.columns = summary_df.columns.str.strip()
+        reaction_df.columns = reaction_df.columns.str.strip()
+        
+        # ============ 构建标准曲线 ============
+        # 查找C4糖标准品
+        c4_mask = summary_df['4C标品名称'].notna() & ~summary_df['4C标品名称'].isin(['6C标品名称', '样品名称', '反应条件/体系'])
+        c4_standards = summary_df[c4_mask]
+        
+        if len(c4_standards) == 0:
+            st.error("未找到C4糖标准品数据")
+            st.stop()
+        
         c4_response = (c4_standards['峰面积'] / c4_standards['浓度（mg/ml）']).mean()
         
-        gald_row = summary_df.iloc[17]
-        gald_response = gald_row['峰面积'] / gald_row['浓度（mg/ml）']
+        # 查找GALD数据
+        gald_mask = summary_df['4C标品名称'] == 'GALD'
+        gald_row = summary_df[gald_mask]
+        
+        if len(gald_row) == 0:
+            st.error("未找到GALD标准品数据")
+            st.stop()
+        
+        gald_response = gald_row['峰面积'].values[0] / gald_row['浓度（mg/ml）'].values[0]
         
         st.success(f"标准曲线: C4响应因子={c4_response:.2f}, GALD响应因子={gald_response:.2f}")
         
-        # 解析反应数据
+        # ============ 解析反应数据 ============
         reactions = {}
         current_enzyme = None
         
-        for _, row in reaction_df.iterrows():
+        for idx, row in reaction_df.iterrows():
             enzyme = row.get('酶名称')
-            if pd.notna(enzyme):
-                current_enzyme = enzyme
-                reactions[enzyme] = {'产物': [], 'GALD': 0}
+            if pd.notna(enzyme) and str(enzyme).strip() != '':
+                current_enzyme = str(enzyme).strip()
+                reactions[current_enzyme] = {'产物': [], 'GALD': 0}
             
             substance = row.get('对应物质')
-            if pd.notna(substance):
+            if pd.notna(substance) and current_enzyme:
                 peak = row['峰面积']
+                substance = str(substance).strip()
+                
                 if substance == 'GALD':
                     reactions[current_enzyme]['GALD'] = peak
                 else:
                     reactions[current_enzyme]['产物'].append({'name': substance, 'peak': peak})
         
-        # 计算碳得率
+        if not reactions:
+            st.error("未找到反应数据")
+            st.stop()
+        
+        # ============ 计算碳得率 ============
         results = []
         for enzyme, data in reactions.items():
             gald_carbon = (data['GALD'] / gald_response) * (2 * 12 / 60.05)
@@ -100,13 +126,11 @@ if uploaded_file:
                 '产物列表': ', '.join([p['name'] for p in products])
             })
         
-        # 排序并显示
         results.sort(key=lambda x: x['碳得率%'], reverse=True)
         
         st.subheader("📊 碳得率排名")
         st.dataframe(pd.DataFrame(results))
         
-        # 图表
         st.subheader("📈 可视化")
         df_chart = pd.DataFrame(results)
         st.bar_chart(df_chart.set_index('酶')['碳得率%'])
