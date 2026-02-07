@@ -187,7 +187,7 @@ if uploaded_file:
         
         gald_response = gald_row[summary_col_map['area']].values[0] / gald_row[summary_col_map['conc']].values[0]
         
-        st.success(f"Standard Curves: C4 Response Factor={c4_response:.2f}, GALD Response Factor={gald_response:.2f}")
+        st.success(f"Standard Curves:\n✓ C4 Response Factor: {c4_response:.2f}\n✓ GALD Response Factor: {gald_response:.2f}")
         
         # ============ Parse Reaction Data ============
         if 'enzyme' not in reaction_col_map or 'area' not in reaction_col_map or 'compound' not in reaction_col_map:
