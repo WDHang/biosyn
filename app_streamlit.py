@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
 Biosyn 碳得率计算器 - Streamlit极简版
-安装: pip install streamlit pandas openpyxl
-运行: streamlit run app_streamlit.py
 """
 
 import streamlit as st
 import pandas as pd
 import numpy as np
+from io import BytesIO
+from datetime import datetime
 
 st.set_page_config(page_title="Biosyn 碳得率计算", layout="wide")
 
@@ -29,6 +29,56 @@ def get_carbon_fraction(name):
     db = MOLECULAR_DB.get(name, {'mw': 120.10, 'carbon': 4})
     return db['carbon'] * 12 / db['mw']
 
+def export_to_excel(results, c4_response, gald_response):
+    """导出结果到Excel"""
+    output = BytesIO()
+    
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        # 汇总表
+        summary_data = []
+        for i, r in enumerate(results, 1):
+            summary_data.append({
+                '排名': i,
+                '酶': r['酶'],
+                '碳得率_%': r['碳得率%'],
+                '转化率_%': r['转化率%'],
+                '产物碳_mgC_mL': r['产物碳'],
+                'GALD碳_mgC_mL': r['GALD碳'],
+            })
+        pd.DataFrame(summary_data).to_excel(writer, sheet_name='碳得率汇总', index=False)
+        
+        # 各酶详细表
+        for r in results:
+            sheet_name = r['酶'].replace(' ', '_')[:31]
+            detail_data = []
+            # GALD
+            detail_data.append({
+                '物质': 'GALD(剩余)',
+                '类型': 'C2',
+                '峰面积': r.get('GALD峰面积', 0),
+                '浓度_mg_mL': r['GALD碳'] / (2*12/60.05),
+                '碳质量_mgC_mL': r['GALD碳'],
+            })
+            # 产物
+            for prod in r.get('产物详情', []):
+                detail_data.append({
+                    '物质': prod['name'],
+                    '类型': 'C4',
+                    '峰面积': prod['peak'],
+                    '浓度_mg_mL': prod['peak'] / c4_response,
+                    '碳质量_mgC_mL': prod['carbon'],
+                })
+            pd.DataFrame(detail_data).to_excel(writer, sheet_name=sheet_name, index=False)
+        
+        # 标准曲线
+        std_data = [
+            {'糖类型': 'C4', '响应因子': c4_response, '碳质量分数': 4*12/120.10},
+            {'糖类型': 'C2(GALD)', '响应因子': gald_response, '碳质量分数': 2*12/60.05},
+        ]
+        pd.DataFrame(std_data).to_excel(writer, sheet_name='标准曲线', index=False)
+    
+    return output.getvalue()
+
 # ============ 主界面 ============
 st.title("🔬 Biosyn 碳得率计算器")
 
@@ -36,7 +86,7 @@ st.markdown("""
 **使用说明:**
 1. 上传包含色谱数据的Excel文件
 2. 文件需包含"汇总"和"反应数据"两个工作表
-3. 查看计算结果
+3. 查看并下载计算结果
 """)
 
 uploaded_file = st.file_uploader("选择Excel文件", type=['xlsx', 'xls'])
@@ -54,7 +104,6 @@ if uploaded_file:
         reaction_df.columns = reaction_df.columns.str.strip()
         
         # ============ 构建标准曲线 ============
-        # 查找C4糖标准品
         c4_mask = summary_df['4C标品名称'].notna() & ~summary_df['4C标品名称'].isin(['6C标品名称', '样品名称', '反应条件/体系'])
         c4_standards = summary_df[c4_mask]
         
@@ -64,7 +113,6 @@ if uploaded_file:
         
         c4_response = (c4_standards['峰面积'] / c4_standards['浓度（mg/ml）']).mean()
         
-        # 查找GALD数据
         gald_mask = summary_df['4C标品名称'] == 'GALD'
         gald_row = summary_df[gald_mask]
         
@@ -112,7 +160,7 @@ if uploaded_file:
                 conc = prod['peak'] / c4_response
                 carbon = conc * cf
                 total_product_carbon += carbon
-                products.append({'name': prod['name'], 'carbon': carbon})
+                products.append({'name': prod['name'], 'peak': prod['peak'], 'carbon': carbon})
             
             total = gald_carbon + total_product_carbon
             yield_pct = (total_product_carbon / total) * 100 if total > 0 else 0
@@ -123,11 +171,14 @@ if uploaded_file:
                 '转化率%': round(100 - yield_pct, 2),
                 '产物碳': round(total_product_carbon, 4),
                 'GALD碳': round(gald_carbon, 4),
-                '产物列表': ', '.join([p['name'] for p in products])
+                '产物列表': ', '.join([p['name'] for p in products]),
+                '产物详情': products,
+                'GALD峰面积': data['GALD'],
             })
         
         results.sort(key=lambda x: x['碳得率%'], reverse=True)
         
+        # ============ 显示结果 ============
         st.subheader("📊 碳得率排名")
         st.dataframe(pd.DataFrame(results))
         
@@ -138,6 +189,23 @@ if uploaded_file:
         st.subheader("📋 详细数据")
         for r in results:
             st.write(f"**{r['酶']}**: {r['产物列表']}")
+        
+        # ============ 下载按钮 ============
+        st.divider()
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            excel_data = export_to_excel(results, c4_response, gald_response)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            st.download_button(
+                label="📥 下载Excel结果",
+                data=excel_data,
+                file_name=f"碳得率结果_{timestamp}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+        
+        with col2:
+            st.info("点击按钮下载完整计算结果，包含汇总表、详细数据和标准曲线参数")
             
     except Exception as e:
         st.error(f"处理出错: {e}")
