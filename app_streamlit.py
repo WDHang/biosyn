@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Biosyn 碳得率计算器 - Streamlit极简版
+CarbonOracle 碳得率计算器 - Streamlit极简版
 """
 
 import streamlit as st
@@ -9,7 +9,7 @@ import numpy as np
 from io import BytesIO
 from datetime import datetime
 
-st.set_page_config(page_title="Biosyn 碳得率计算", layout="wide")
+st.set_page_config(page_title="CarbonOracle 碳得率计算", layout="wide")
 
 # ============ 分子数据库 ============
 MOLECULAR_DB = {
@@ -80,7 +80,7 @@ def export_to_excel(results, c4_response, gald_response):
     return output.getvalue()
 
 # ============ 主界面 ============
-st.title("🔬 Biosyn 碳得率计算器")
+st.title("🔬 CarbonOracle 碳得率计算器")
 
 st.markdown("""
 **使用说明:**
