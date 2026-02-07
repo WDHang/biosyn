@@ -11,35 +11,19 @@ from datetime import datetime
 
 st.set_page_config(page_title="CarbonOracle", page_icon="🔬", layout="wide")
 
-# ============ 自定义背景样式 ============
-st.markdown("""
-<style>
-/* 主背景渐变 */
-.stApp {
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-    background-attachment: fixed;
-}
-
-/* 标题样式 */
-h1, h2, h3, h4 {
-    color: #e8e8e8 !important;
-    font-family: 'Helvetica Neue', Arial, sans-serif;
-    font-weight: 600;
-}
-
-/* 卡片样式 */
+# ============ 分子数据库 ============
 div[data-testid="stMarkdownContainer"] > div {
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.85);
     border-radius: 16px;
     padding: 24px;
     margin: 16px 0;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
 }
 
 /* 按钮样式 */
 div.stButton > button {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
     border: none;
     border-radius: 12px;
     padding: 12px 32px;
@@ -50,34 +34,36 @@ div.stButton > button {
 
 div.stButton > button:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+    box-shadow: 0 8px 25px rgba(14, 165, 233, 0.35);
 }
 
 /* 文件上传区域 */
 div[data-testid="stFileUploader"] {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(248, 250, 252, 0.9);
     border-radius: 16px;
     padding: 24px;
-    border: 2px dashed rgba(255, 255, 255, 0.2);
+    border: 2px dashed #cbd5e1;
 }
 
 /* 数据表格 */
 div[data-testid="stDataFrame"] {
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.9);
     border-radius: 12px;
     overflow: hidden;
+    border: 1px solid #e2e8f0;
 }
 
 /* 成功提示 */
 div[data-testid="stSuccess"] {
-    background: linear-gradient(135deg, rgba(46, 204, 113, 0.2), rgba(39, 174, 96, 0.2));
-    border: 1px solid rgba(46, 204, 113, 0.3);
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(22, 163, 74, 0.1));
+    border: 1px solid rgba(34, 197, 94, 0.3);
     border-radius: 12px;
+    color: #166534;
 }
 
 /* 错误提示 */
 div[data-testid="stError"] {
-    background: rgba(231, 76, 60, 0.2);
+    background: rgba(239, 68, 68, 0.1);
     border: 1px solid rgba(231, 76, 60, 0.3);
     border-radius: 12px;
 }
