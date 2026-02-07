@@ -241,21 +241,7 @@ if uploaded_file:
                                      rxn_rt_col=rxn_rt_col,
                                      tolerance=0.15)
 
-        # Show RT match results
-        st.subheader("🔬 RT Matching Results")
-        match_data = []
-        for compound, match in rt_matches.items():
-            status = '✓' if match['is_match'] else '✗'
-            match_data.append({
-                'Compound': compound,
-                'Std_RT': f"{match['std_rt']:.6f}",
-                'Matched_RT': f"{match['matched_rt']:.6f}" if match['matched_rt'] else '-',
-                'Deviation': f"{match['deviation']:+.6f}" if match['deviation'] else '-',
-                'Status': status
-            })
-        st.dataframe(pd.DataFrame(match_data))
-
-        # ============ Parse Reaction Data ============
+        # ============ Parse Reaction Data with RT Matching ============
         if 'enzyme' not in reaction_col_map or 'area' not in reaction_col_map:
             st.error("Required columns not found: Enzyme Name, Peak Area")
             st.stop()
@@ -264,6 +250,7 @@ if uploaded_file:
 
         reactions = {}
         current_enzyme = None
+        rt_predictions = []
 
         for idx, row in reaction_df.iterrows():
             enzyme = row.get(reaction_col_map.get('enzyme'))
@@ -279,25 +266,26 @@ if uploaded_file:
                 rt_val = row.get(rxn_rt_col)
                 if pd.notna(rt_val):
                     for compound, match in rt_matches.items():
-                        if match['matched_rt'] and abs(float(rt_val) - match['matched_rt']) <= 0.001:
+                        dev = float(rt_val) - match['std_rt']
+                        if abs(dev) <= tolerance:
                             substance = compound
                             is_predicted = True
-                            rt_deviation = match['deviation']
+                            rt_deviation = round(dev, 6)
                             break
+                    else:
+                        substance = 'Unknown'
 
             if pd.notna(substance) and current_enzyme:
                 peak = row[reaction_col_map['area']]
                 substance = str(substance).strip()
 
-                if substance == 'GALD':
-                    reactions[current_enzyme]['GALD'] = peak
-                else:
-                    reactions[current_enzyme]['products'].append({
-                        'name': substance,
-                        'peak': peak,
-                        'is_predicted': is_predicted,
-                        'rt_deviation': rt_deviation
-                    })
+                rt_predictions.append({
+                    'Enzyme': current_enzyme,
+                    'RT': round(float(rt_val), 6) if pd.notna(rt_val) else None,
+                    'Compound': substance if substance != 'Unknown' else None,
+                    'RT_Deviation': f"{rt_deviation:+.6f}" if rt_deviation is not None else '-',
+                    'Peak_Area': round(peak, 6)
+                })
 
                 if substance == 'GALD':
                     reactions[current_enzyme]['GALD'] = peak
@@ -308,6 +296,16 @@ if uploaded_file:
                         'is_predicted': is_predicted,
                         'rt_deviation': rt_deviation
                     })
+
+        if not reactions:
+            st.error("Reaction data not found")
+            st.stop()
+
+        # Show RT matching results by Enzyme
+        st.subheader("🔬 RT Matching Results by Enzyme")
+        if rt_predictions:
+            pred_df = pd.DataFrame(rt_predictions)
+            st.dataframe(pred_df)
 
         if not reactions:
             st.error("Reaction data not found")
