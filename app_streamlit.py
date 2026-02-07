@@ -95,10 +95,9 @@ st.markdown("""
 *Upload your LC/GC data and calculate carbon yield automatically.*
 
 ---
-
 **User Guide:**
 1. 📁 Upload an Excel file with your chromatographic data
-2. 📋 File must contain two sheets: "汇总" (Summary) and "反应数据" (Reaction Data)
+2. 📋 Sheet names: "Standard Curve" and "Reaction Data"
 3. 📊 View and download calculation results
 
 **Supported Compounds:**
@@ -114,47 +113,99 @@ if uploaded_file:
         xl = pd.ExcelFile(uploaded_file)
         
         # Read data
-        summary_df = pd.read_excel(xl, sheet_name='汇总')
-        reaction_df = pd.read_excel(xl, sheet_name='反应数据')
+        # Try both English and Chinese sheet names
+        standard_names = ['Standard Curve', '汇总', 'Summary']
+        reaction_names = ['Reaction Data', 'Reaction', '反应数据']
+        
+        standard_df = None
+        for name in standard_names:
+            if name in xl.sheet_names:
+                standard_df = pd.read_excel(xl, sheet_name=name)
+                break
+        if standard_df is None:
+            st.error("Standard Curve sheet not found")
+            st.stop()
+        
+        reaction_df = None
+        for name in reaction_names:
+            if name in xl.sheet_names:
+                reaction_df = pd.read_excel(xl, sheet_name=name)
+                break
+        if reaction_df is None:
+            st.error("Reaction Data sheet not found")
+            st.stop()
         
         # Clean column names
-        summary_df.columns = summary_df.columns.str.strip()
+        standard_df.columns = standard_df.columns.str.strip()
         reaction_df.columns = reaction_df.columns.str.strip()
         
+        # Map column names (support both English and Chinese)
+        summary_col_map = {}
+        reaction_col_map = {}
+        
+        # Summary sheet column mapping
+        for col in standard_df.columns:
+            col_lower = str(col).lower().strip()
+            if '4c' in col_lower or 'standard' in col_lower:
+                summary_col_map['compound'] = col
+            elif 'area' in col_lower or '峰面积' in col:
+                summary_col_map['area'] = col
+            elif 'concentration' in col_lower or '浓度' in col:
+                summary_col_map['conc'] = col
+        
+        # Reaction sheet column mapping
+        for col in reaction_df.columns:
+            col_lower = str(col).lower().strip()
+            if 'enzyme' in col_lower or '酶名称' in col:
+                reaction_col_map['enzyme'] = col
+            elif 'area' in col_lower or '峰面积' in col:
+                reaction_col_map['area'] = col
+            elif 'compound' in col_lower or '物质' in col or '对应物质' in col:
+                reaction_col_map['compound'] = col
+        
         # ============ Build Standard Curves ============
-        c4_mask = summary_df['4C标品名称'].notna() & ~summary_df['4C标品名称'].isin(['6C标品名称', '样品名称', '反应条件/体系'])
-        c4_standards = summary_df[c4_mask]
+        if 'compound' not in summary_col_map or 'area' not in summary_col_map or 'conc' not in summary_col_map:
+            st.error("Summary sheet columns not found: Compound Name, Peak Area, Concentration")
+            st.stop()
+        
+        c4_mask = ~standard_df[summary_col_map['compound']].isin(['6C标品名称', '样品名称', '反应条件/体系', '6C Standard', 'Sample Name', 'Condition'])
+        c4_mask = c4_mask & standard_df[summary_col_map['compound']].notna()
+        c4_standards = standard_df[c4_mask]
         
         if len(c4_standards) == 0:
             st.error("C4 sugar standard data not found")
             st.stop()
         
-        c4_response = (c4_standards['峰面积'] / c4_standards['浓度（mg/ml）']).mean()
+        c4_response = (c4_standards[summary_col_map['area']] / c4_standards[summary_col_map['conc']]).mean()
         
-        gald_mask = summary_df['4C标品名称'] == 'GALD'
-        gald_row = summary_df[gald_mask]
+        gald_mask = standard_df[summary_col_map['compound']] == 'GALD'
+        gald_row = standard_df[gald_mask]
         
         if len(gald_row) == 0:
             st.error("GALD standard data not found")
             st.stop()
         
-        gald_response = gald_row['峰面积'].values[0] / gald_row['浓度（mg/ml）'].values[0]
+        gald_response = gald_row[summary_col_map['area']].values[0] / gald_row[summary_col_map['conc']].values[0]
         
         st.success(f"Standard Curves: C4 Response Factor={c4_response:.2f}, GALD Response Factor={gald_response:.2f}")
         
         # ============ Parse Reaction Data ============
+        if 'enzyme' not in reaction_col_map or 'area' not in reaction_col_map or 'compound' not in reaction_col_map:
+            st.error("Reaction sheet columns not found: Enzyme Name, Peak Area, Compound")
+            st.stop()
+        
         reactions = {}
         current_enzyme = None
         
         for idx, row in reaction_df.iterrows():
-            enzyme = row.get('酶名称')
+            enzyme = row.get(reaction_col_map['enzyme'])
             if pd.notna(enzyme) and str(enzyme).strip() != '':
                 current_enzyme = str(enzyme).strip()
                 reactions[current_enzyme] = {'products': [], 'GALD': 0}
             
-            substance = row.get('对应物质')
+            substance = row.get(reaction_col_map['compound'])
             if pd.notna(substance) and current_enzyme:
-                peak = row['峰面积']
+                peak = row[reaction_col_map['area']]
                 substance = str(substance).strip()
                 
                 if substance == 'GALD':
