@@ -188,11 +188,18 @@ if uploaded_file:
         gald_response = gald_row[summary_col_map['area']].values[0] / gald_row[summary_col_map['conc']].values[0]
         
         st.success("Standard Curves calculated successfully!")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("C4 Sugar Response Factor", f"{c4_response:.2f}")
-        with col2:
-            st.metric("GALD Response Factor", f"{gald_response:.2f}")
+        st.markdown(f"""
+<div style="display: flex; gap: 40px; margin-top: 16px;">
+    <div>
+        <span style="color: #666; font-size: 14px;">C4 Sugar Response Factor</span><br>
+        <span style="font-size: 18px; font-weight: 600;">{c4_response:.2f}</span>
+    </div>
+    <div>
+        <span style="color: #666; font-size: 14px;">GALD Response Factor</span><br>
+        <span style="font-size: 18px; font-weight: 600;">{gald_response:.2f}</span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
         
         # ============ Parse Reaction Data ============
         if 'enzyme' not in reaction_col_map or 'area' not in reaction_col_map or 'compound' not in reaction_col_map:
