@@ -241,6 +241,8 @@ if uploaded_file:
         if not reactions:
             st.error("Reaction data not found")
             st.stop()
+
+        # ============ Calculate Carbon Yield ============
         c4_sugar_names = ['Erythrose', 'Threose', 'Erythrulose', '赤藓糖', '苏阿糖', '赤藓酮糖']
         c4_mask = standard_df[summary_col_map['compound']].isin(c4_sugar_names)
         c4_standards = standard_df[c4_mask]
@@ -259,50 +261,21 @@ if uploaded_file:
             st.stop()
         
         gald_response = gald_row[summary_col_map['area']].values[0] / gald_row[summary_col_map['conc']].values[0]
-        
+
         st.success("Standard Curves calculated successfully!")
         st.markdown(f"""
-<div style="display: flex; gap: 40px; margin-top: 16px;">
-    <div>
-        <span style="color: #666; font-size: 14px;">C4 Sugar Response Factor</span><br>
-        <span style="font-size: 18px; font-weight: 600;">{c4_response:.2f}</span>
-    </div>
-    <div>
-        <span style="color: #666; font-size: 14px;">GALD Response Factor</span><br>
-        <span style="font-size: 18px; font-weight: 600;">{gald_response:.2f}</span>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-        
-        # ============ Parse Reaction Data ============
-        if 'enzyme' not in reaction_col_map or 'area' not in reaction_col_map or 'compound' not in reaction_col_map:
-            st.error("Reaction sheet columns not found: Enzyme Name, Peak Area, Compound")
-            st.stop()
-        
-        reactions = {}
-        current_enzyme = None
-        
-        for idx, row in reaction_df.iterrows():
-            enzyme = row.get(reaction_col_map['enzyme'])
-            if pd.notna(enzyme) and str(enzyme).strip() != '':
-                current_enzyme = str(enzyme).strip()
-                reactions[current_enzyme] = {'products': [], 'GALD': 0}
-            
-            substance = row.get(reaction_col_map['compound'])
-            if pd.notna(substance) and current_enzyme:
-                peak = row[reaction_col_map['area']]
-                substance = str(substance).strip()
-                
-                if substance == 'GALD':
-                    reactions[current_enzyme]['GALD'] = peak
-                else:
-                    reactions[current_enzyme]['products'].append({'name': substance, 'peak': peak})
-        
-        if not reactions:
-            st.error("Reaction data not found")
-            st.stop()
-        
-        # ============ Calculate Carbon Yield ============
+        <div style="display: flex; gap: 40px; margin-top: 16px;">
+            <div>
+                <span style="color: #666; font-size: 14px;">C4 Sugar Response Factor</span><br>
+                <span style="font-size: 18px; font-weight: 600;">{c4_response:.2f}</span>
+            </div>
+            <div>
+                <span style="color: #666; font-size: 14px;">GALD Response Factor</span><br>
+                <span style="font-size: 18px; font-weight: 600;">{gald_response:.2f}</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
         results = []
         for enzyme, data in reactions.items():
             gald_carbon = (data['GALD'] / gald_response) * (2 * 12 / 60.05)
