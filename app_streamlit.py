@@ -48,14 +48,49 @@ def build_rt_reference(standard_df, compound_col='Compound', rt_col='Retention_T
         compound = row.get(compound_col)
         rt = row.get(rt_col)
         if pd.notna(rt) and pd.notna(compound):
-            rt_ref[round(float(rt), 3)] = str(compound).strip()
+            rt_ref[round(float(rt), 6)] = str(compound).strip()
     return rt_ref
 
-def match_compound_by_rt(rt, rt_ref, tolerance=0.15):
-    for ref_rt, compound in rt_ref.items():
-        if abs(float(rt) - ref_rt) <= tolerance:
-            return compound, ref_rt
-    return None, None
+def scan_rt_matches(standard_df, reaction_df, std_compound_col='Compound', std_rt_col='Retention_Time', 
+                    rxn_rt_col='Retention_Time', tolerance=0.15):
+    import numpy as np
+    
+    std_rts = []
+    for _, row in standard_df.iterrows():
+        compound = row.get(std_compound_col)
+        rt = row.get(std_rt_col)
+        if pd.notna(compound) and pd.notna(rt):
+            std_rts.append({'compound': str(compound).strip(), 'std_rt': round(float(rt), 6)})
+    
+    rxn_rts = reaction_df[rxn_rt_col].dropna().tolist()
+    rxn_rts_array = np.array(rxn_rts)
+    
+    matches = {}
+    for std in std_rts:
+        compound = std['compound']
+        std_rt = std['std_rt']
+        
+        deviations = np.abs(rxn_rts_array - std_rt)
+        min_dev = np.min(deviations) if len(deviations) > 0 else None
+        closest_idx = np.argmin(deviations) if len(deviations) > 0 else None
+        closest_rt = rxn_rts[closest_idx] if closest_idx is not None else None
+        
+        matches[compound] = {
+            'std_rt': std_rt,
+            'matched_rt': round(closest_rt, 6) if closest_rt is not None else None,
+            'deviation': round(closest_rt - std_rt, 6) if closest_rt is not None else None,
+            'abs_deviation': round(min_dev, 6) if min_dev is not None else None,
+            'is_match': min_dev <= tolerance if min_dev is not None else False
+        }
+    
+    return matches
+
+def get_peak_by_rt(reaction_df, target_rt, tolerance=0.15, rxn_rt_col='Retention_Time', area_col='Peak_Area'):
+    for _, row in reaction_df.iterrows():
+        rt = row.get(rxn_rt_col)
+        if pd.notna(rt) and abs(float(rt) - target_rt) <= tolerance:
+            return row.get(area_col)
+    return None
 
 def export_to_excel(results, c4_response, gald_response):
     """Export results to Excel"""
@@ -186,18 +221,39 @@ if uploaded_file:
             elif 'compound' in col_lower or '物质' in col or '对应物质' in col:
                 reaction_col_map['compound'] = col
 
-        # ============ Build RT Reference from Standard Curve ============
-        rt_col = summary_col_map.get('compound', 'Compound')
+        # ============ Scan RT Matches from Reaction Data ============
         rt_time_col = 'Retention_Time'
         if rt_time_col not in standard_df.columns:
             for col in standard_df.columns:
                 if 'rt' in str(col).lower() or 'retention' in str(col).lower():
                     rt_time_col = col
                     break
-        rt_ref = build_rt_reference(standard_df, compound_col=rt_col, rt_col=rt_time_col)
 
-        if rt_ref:
-            st.info(f"RT Reference: {len(rt_ref)} compounds")
+        rxn_rt_col = 'Retention_Time'
+        for col in reaction_df.columns:
+            if 'rt' in str(col).lower() or 'retention' in str(col).lower():
+                rxn_rt_col = col
+                break
+
+        rt_matches = scan_rt_matches(standard_df, reaction_df,
+                                     std_compound_col=summary_col_map.get('compound', 'Compound'),
+                                     std_rt_col=rt_time_col,
+                                     rxn_rt_col=rxn_rt_col,
+                                     tolerance=0.15)
+
+        # Show RT match results
+        st.subheader("🔬 RT Matching Results")
+        match_data = []
+        for compound, match in rt_matches.items():
+            status = '✓' if match['is_match'] else '✗'
+            match_data.append({
+                'Compound': compound,
+                'Std_RT': f"{match['std_rt']:.6f}",
+                'Matched_RT': f"{match['matched_rt']:.6f}" if match['matched_rt'] else '-',
+                'Deviation': f"{match['deviation']:+.6f}" if match['deviation'] else '-',
+                'Status': status
+            })
+        st.dataframe(pd.DataFrame(match_data))
 
         # ============ Parse Reaction Data ============
         if 'enzyme' not in reaction_col_map or 'area' not in reaction_col_map:
@@ -205,15 +261,9 @@ if uploaded_file:
             st.stop()
 
         has_compound = 'compound' in reaction_col_map
-        has_rt = 'rt' in reaction_col_map or 'Retention_Time' in reaction_df.columns
-
-        if not has_compound and not has_rt:
-            st.error("Required column not found: Compound or Retention_Time")
-            st.stop()
 
         reactions = {}
         current_enzyme = None
-        rt_predictions = []
 
         for idx, row in reaction_df.iterrows():
             enzyme = row.get(reaction_col_map.get('enzyme'))
@@ -225,31 +275,29 @@ if uploaded_file:
             is_predicted = False
             rt_deviation = None
 
-            # If compound is missing, try RT matching
-            if (not pd.notna(substance) or str(substance).strip() == '') and has_rt and current_enzyme:
-                rt_val = row.get(reaction_col_map.get('rt')) or row.get('Retention_Time')
+            if not has_compound or (pd.notna(substance) and str(substance).strip() == ''):
+                rt_val = row.get(rxn_rt_col)
                 if pd.notna(rt_val):
-                    matched, ref_rt = match_compound_by_rt(rt_val, rt_ref, tolerance=0.15)
-                    substance = matched
-                    if matched:
-                        is_predicted = True
-                        rt_deviation = round(float(rt_val) - ref_rt, 3)
-                    else:
-                        substance = 'Unknown'
-                        rt_deviation = None
+                    for compound, match in rt_matches.items():
+                        if match['matched_rt'] and abs(float(rt_val) - match['matched_rt']) <= 0.001:
+                            substance = compound
+                            is_predicted = True
+                            rt_deviation = match['deviation']
+                            break
 
             if pd.notna(substance) and current_enzyme:
                 peak = row[reaction_col_map['area']]
                 substance = str(substance).strip()
 
-                rt_val = row.get(reaction_col_map.get('rt')) or row.get('Retention_Time')
-                rt_predictions.append({
-                    'Enzyme': current_enzyme,
-                    'RT': rt_val,
-                    'Predicted_Compound': substance if substance != 'Unknown' else None,
-                    'RT_Deviation': f"{rt_deviation:+.3f}" if rt_deviation else '-',
-                    'Peak_Area': peak
-                })
+                if substance == 'GALD':
+                    reactions[current_enzyme]['GALD'] = peak
+                else:
+                    reactions[current_enzyme]['products'].append({
+                        'name': substance,
+                        'peak': peak,
+                        'is_predicted': is_predicted,
+                        'rt_deviation': rt_deviation
+                    })
 
                 if substance == 'GALD':
                     reactions[current_enzyme]['GALD'] = peak
@@ -264,11 +312,6 @@ if uploaded_file:
         if not reactions:
             st.error("Reaction data not found")
             st.stop()
-
-        if rt_predictions:
-            st.subheader("🔬 RT-Based Compound Predictions")
-            pred_df = pd.DataFrame(rt_predictions)
-            st.dataframe(pred_df)
 
         # ============ Calculate Carbon Yield ============
         c4_sugar_names = ['Erythrose', 'Threose', 'Erythrulose', '赤藓糖', '苏阿糖', '赤藓酮糖']
@@ -295,11 +338,11 @@ if uploaded_file:
         <div style="display: flex; gap: 40px; margin-top: 16px;">
             <div>
                 <span style="color: #666; font-size: 14px;">C4 Sugar Response Factor</span><br>
-                <span style="font-size: 18px; font-weight: 600;">{c4_response:.2f}</span>
+                <span style="font-size: 18px; font-weight: 600;">{c4_response:.6f}</span>
             </div>
             <div>
                 <span style="color: #666; font-size: 14px;">GALD Response Factor</span><br>
-                <span style="font-size: 18px; font-weight: 600;">{gald_response:.2f}</span>
+                <span style="font-size: 18px; font-weight: 600;">{gald_response:.6f}</span>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -355,14 +398,13 @@ if uploaded_file:
                 for prod in r['products']:
                     c_type = get_sugar_type(prod['name'])
                     conc = prod['peak'] / c4_response
-                    rt_note = f" (RT: {prod['rt_deviation']:+.3f})" if prod.get('is_predicted') else ""
                     product_data.append({
                         'Compound': prod['name'] + (" *" if prod.get('is_predicted') else ""),
                         'Type': c_type,
-                        'Peak_Area': prod['peak'],
-                        'Concentration': round(conc, 4),
-                        'Carbon_Mass': round(prod['carbon'], 4),
-                        'RT_Deviation': f"{prod['rt_deviation']:+.3f}" if prod.get('rt_deviation') else '-'
+                        'Peak_Area': round(prod['peak'], 6),
+                        'Concentration': round(conc, 6),
+                        'Carbon_Mass': round(prod['carbon'], 6),
+                        'RT_Deviation': f"{prod['rt_deviation']:+.6f}" if prod.get('rt_deviation') else '-'
                     })
                 st.dataframe(pd.DataFrame(product_data))
         
