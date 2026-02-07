@@ -36,6 +36,13 @@ def get_carbon_fraction(name):
     db = MOLECULAR_DB.get(name, {'mw': 120.10, 'carbon': 4})
     return db['carbon'] * 12 / db['mw']
 
+def get_sugar_type(name):
+    """Return 'C4' or 'C6' based on compound name"""
+    c4_sugars = ['Erythrose', 'Threose', 'Erythrulose']
+    if name in c4_sugars:
+        return 'C4'
+    return 'C6'
+
 def export_to_excel(results, c4_response, gald_response):
     """Export results to Excel"""
     output = BytesIO()
@@ -272,13 +279,27 @@ if uploaded_file:
         } for i, r in enumerate(results)])
         st.dataframe(display_df)
         
+        # ============ Product Details ============
+        st.subheader("📦 Product Details by Enzyme")
+        
+        for r in results:
+            with st.expander(f"{r['enzyme']} ({r['yield_pct']}% yield)", expanded=False):
+                product_data = []
+                for prod in r['products']:
+                    c_type = get_sugar_type(prod['name'])
+                    conc = prod['peak'] / c4_response
+                    product_data.append({
+                        'Compound': prod['name'],
+                        'Type': c_type,
+                        'Peak_Area': prod['peak'],
+                        'Concentration': round(conc, 4),
+                        'Carbon_Mass': round(prod['carbon'], 4)
+                    })
+                st.dataframe(pd.DataFrame(product_data))
+        
         st.subheader("📈 Visualization")
         df_chart = pd.DataFrame(results)
         st.bar_chart(df_chart.set_index('enzyme')['yield_pct'])
-        
-        st.subheader("📋 Product Details")
-        for r in results:
-            st.write(f"**{r['enzyme']}**: {r['product_list']}")
         
         # ============ Download Button ============
         st.divider()
