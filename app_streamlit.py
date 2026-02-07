@@ -247,6 +247,7 @@ if uploaded_file:
             st.stop()
 
         has_compound = 'compound' in reaction_col_map
+        tolerance = 0.15
 
         reactions = {}
         current_enzyme = None
