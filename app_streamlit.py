@@ -9,7 +9,7 @@ import numpy as np
 from io import BytesIO
 from datetime import datetime
 
-st.set_page_config(page_title="CarbonOracle", page_icon="🔬", layout="wide")
+st.set_page_config(page_title="CarbonOracle", page_icon="🦥", layout="wide")
 
 # ============ 分子数据库 ============
 MOLECULAR_DB = {
