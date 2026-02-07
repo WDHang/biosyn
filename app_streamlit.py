@@ -170,18 +170,14 @@ if uploaded_file:
                 reaction_col_map['compound'] = col
         
         # ============ Build Standard Curves ============
-        if 'compound' not in summary_col_map or 'area' not in summary_col_map or 'conc' not in summary_col_map:
-            st.error("Summary sheet columns not found: Compound Name, Peak Area, Concentration")
-            st.stop()
-        
-        c4_mask = ~standard_df[summary_col_map['compound']].isin(['6C标品名称', '样品名称', '反应条件/体系', '6C Standard', 'Sample Name', 'Condition'])
-        c4_mask = c4_mask & standard_df[summary_col_map['compound']].notna()
+        c4_sugar_names = ['Sorbose', 'Erythrose', 'Erythrulose', '赤藓糖', '苏阿糖', '赤藓酮糖']
+        c4_mask = standard_df[summary_col_map['compound']].isin(c4_sugar_names)
         c4_standards = standard_df[c4_mask]
-        
+
         if len(c4_standards) == 0:
             st.error("C4 sugar standard data not found")
             st.stop()
-        
+
         c4_response = (c4_standards[summary_col_map['area']] / c4_standards[summary_col_map['conc']]).mean()
         
         gald_mask = standard_df[summary_col_map['compound']] == 'GALD'
