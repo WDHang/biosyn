@@ -83,10 +83,21 @@ def export_to_excel(results, c4_response, gald_response):
 st.title("🔬 CarbonOracle")
 
 st.markdown("""
-**使用说明:**
-1. 上传包含色谱数据的Excel文件
-2. 文件需包含"汇总"和"反应数据"两个工作表
-3. 查看并下载计算结果
+**Carbon Yield Calculator for Enzymatic Reactions**
+
+*Upload your LC/GC data and calculate carbon yield automatically.*
+
+---
+
+**使用说明 (User Guide):**
+1. 📁 Upload an Excel file with your chromatographic data
+2. 📋 File must contain two sheets: "汇总" (Summary) and "反应数据" (Reaction Data)
+3. 📊 View and download calculation results
+
+**Supported Compounds:**
+- C4 Sugars: Erythrose, Threose, Erythrulose, Sorbose
+- C6 Sugars: Glucose, Fructose, Mannose, Allose, and more
+- Substrate: GALD (Glyceraldehyde)
 """)
 
 uploaded_file = st.file_uploader("选择Excel文件", type=['xlsx', 'xls'])
