@@ -101,8 +101,8 @@ st.markdown("""
 3. 📊 View and download calculation results
 
 **Supported Compounds:**
-- C4 Sugars: Erythrose, Threose, Erythrulose, Sorbose
-- C6 Sugars: Glucose, Fructose, Mannose, Allose, and more
+- C4 Sugars: Erythrose, Threose, Erythrulose
+- C6 Sugars: Glucose, Fructose, Mannose, Sorbose, Allose, and more
 - Substrate: GALD (Glyceraldehyde)
 """)
 
