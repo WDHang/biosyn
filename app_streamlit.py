@@ -54,8 +54,8 @@ def build_rt_reference(standard_df, compound_col='Compound', rt_col='Retention_T
 def match_compound_by_rt(rt, rt_ref, tolerance=0.15):
     for ref_rt, compound in rt_ref.items():
         if abs(float(rt) - ref_rt) <= tolerance:
-            return compound
-    return None
+            return compound, ref_rt
+    return None, None
 
 def export_to_excel(results, c4_response, gald_response):
     """Export results to Excel"""
@@ -204,7 +204,6 @@ if uploaded_file:
             st.error("Required columns not found: Enzyme Name, Peak Area")
             st.stop()
 
-        # Check if Compound column exists
         has_compound = 'compound' in reaction_col_map
         has_rt = 'rt' in reaction_col_map or 'Retention_Time' in reaction_df.columns
 
@@ -214,6 +213,7 @@ if uploaded_file:
 
         reactions = {}
         current_enzyme = None
+        rt_predictions = []
 
         for idx, row in reaction_df.iterrows():
             enzyme = row.get(reaction_col_map.get('enzyme'))
@@ -222,12 +222,17 @@ if uploaded_file:
                 reactions[current_enzyme] = {'products': [], 'GALD': 0}
 
             substance = row.get(reaction_col_map.get('compound')) if has_compound else None
+            is_predicted = False
+            rt_deviation = None
 
             # If compound is missing, try RT matching
             if (not pd.notna(substance) or str(substance).strip() == '') and has_rt and current_enzyme:
                 rt_val = row.get(reaction_col_map.get('rt')) or row.get('Retention_Time')
                 if pd.notna(rt_val):
-                    substance = match_compound_by_rt(rt_val, rt_ref, tolerance=0.15)
+                    substance, ref_rt = match_compound_by_rt(rt_val, rt_ref, tolerance=0.15)
+                    if substance:
+                        is_predicted = True
+                        rt_deviation = round(float(rt_val) - ref_rt, 3)
 
             if pd.notna(substance) and current_enzyme:
                 peak = row[reaction_col_map['area']]
@@ -236,11 +241,30 @@ if uploaded_file:
                 if substance == 'GALD':
                     reactions[current_enzyme]['GALD'] = peak
                 else:
-                    reactions[current_enzyme]['products'].append({'name': substance, 'peak': peak})
+                    reactions[current_enzyme]['products'].append({
+                        'name': substance, 
+                        'peak': peak,
+                        'is_predicted': is_predicted,
+                        'rt_deviation': rt_deviation
+                    })
+                    if is_predicted:
+                        rt_val = row.get(reaction_col_map.get('rt')) or row.get('Retention_Time')
+                        rt_predictions.append({
+                            'Enzyme': current_enzyme,
+                            'RT': rt_val,
+                            'Predicted_Compound': substance,
+                            'RT_Deviation': f"{rt_deviation:+.3f}" if rt_deviation else '-',
+                            'Peak_Area': peak
+                        })
 
         if not reactions:
             st.error("Reaction data not found")
             st.stop()
+
+        if rt_predictions:
+            st.subheader("🔬 RT-Based Compound Predictions")
+            pred_df = pd.DataFrame(rt_predictions)
+            st.dataframe(pred_df)
 
         # ============ Calculate Carbon Yield ============
         c4_sugar_names = ['Erythrose', 'Threose', 'Erythrulose', '赤藓糖', '苏阿糖', '赤藓酮糖']
@@ -320,19 +344,21 @@ if uploaded_file:
         
         # ============ Product Details ============
         st.subheader("📦 Product Details by Enzyme")
-        
+
         for r in results:
             with st.expander(f"{r['enzyme']} ({r['yield_pct']}% yield)", expanded=False):
                 product_data = []
                 for prod in r['products']:
                     c_type = get_sugar_type(prod['name'])
                     conc = prod['peak'] / c4_response
+                    rt_note = f" (RT: {prod['rt_deviation']:+.3f})" if prod.get('is_predicted') else ""
                     product_data.append({
-                        'Compound': prod['name'],
+                        'Compound': prod['name'] + (" *" if prod.get('is_predicted') else ""),
                         'Type': c_type,
                         'Peak_Area': prod['peak'],
                         'Concentration': round(conc, 4),
-                        'Carbon_Mass': round(prod['carbon'], 4)
+                        'Carbon_Mass': round(prod['carbon'], 4),
+                        'RT_Deviation': f"{prod['rt_deviation']:+.3f}" if prod.get('rt_deviation') else '-'
                     })
                 st.dataframe(pd.DataFrame(product_data))
         
