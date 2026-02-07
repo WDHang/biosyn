@@ -6,6 +6,7 @@ CarbonOracle
 import streamlit as st
 import pandas as pd
 import numpy as np
+import altair as alt
 from io import BytesIO
 from datetime import datetime
 
@@ -297,7 +298,20 @@ if uploaded_file:
         
         st.subheader("📈 Visualization")
         df_chart = pd.DataFrame(results)
-        st.bar_chart(df_chart.set_index('enzyme')['yield_pct'])
+
+        chart = alt.Chart(df_chart).mark_bar(cornerRadiusEnd=4, color='#1976D2').encode(
+            x=alt.X('enzyme', title='Enzyme', sort='-y'),
+            y=alt.Y('yield_pct', title='Carbon Yield (%)', scale=alt.Scale(domain=[0, 100])),
+            tooltip=['enzyme', 'yield_pct', 'conversion_pct', 'product_carbon']
+        ).properties(
+            height=350,
+            width=600
+        ).configure_axis(
+            labelFontSize=12,
+            titleFontSize=14
+        )
+
+        st.altair_chart(chart, use_container_width=True)
         
         # ============ Download Button ============
         st.divider()
