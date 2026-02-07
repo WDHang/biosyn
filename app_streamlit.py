@@ -299,9 +299,10 @@ if uploaded_file:
         st.subheader("📈 Visualization")
         df_chart = pd.DataFrame(results)
 
-        chart = alt.Chart(df_chart).mark_bar(cornerRadiusEnd=4, color='#1976D2').encode(
+        chart = alt.Chart(df_chart).mark_bar(cornerRadiusEnd=4).encode(
             x=alt.X('enzyme', title='Enzyme', sort='-y'),
             y=alt.Y('yield_pct', title='Carbon Yield (%)', scale=alt.Scale(domain=[0, 100])),
+            color=alt.Color('yield_pct', scale=alt.Scale(domain=[0, 100], range=['#90CAF9', '#1565C0']), legend=None),
             tooltip=['enzyme', 'yield_pct', 'conversion_pct', 'product_carbon']
         ).properties(
             height=350,
