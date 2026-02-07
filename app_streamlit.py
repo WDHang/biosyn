@@ -11,18 +11,25 @@ from datetime import datetime
 
 st.set_page_config(page_title="CarbonOracle", page_icon="🦥", layout="wide")
 
-# ============ 分子数据库 ============
+# ============ Molecular Database ============
 MOLECULAR_DB = {
     'GALD': {'mw': 60.05, 'carbon': 2},
-    '赤藓糖': {'mw': 120.10, 'carbon': 4},
-    '赤藓酮糖': {'mw': 120.10, 'carbon': 4},
-    '苏阿糖': {'mw': 120.10, 'carbon': 4},
-    '葡萄糖': {'mw': 180.16, 'carbon': 6},
-    '山梨糖': {'mw': 180.16, 'carbon': 6},
-    '阿洛糖': {'mw': 180.16, 'carbon': 6},
-    '阿洛酮糖': {'mw': 180.16, 'carbon': 6},
-    '果糖': {'mw': 180.16, 'carbon': 6},
-    '甘露糖': {'mw': 180.16, 'carbon': 6},
+    'Erythrose': {'mw': 120.10, 'carbon': 4},
+    'Threose': {'mw': 120.10, 'carbon': 4},
+    'Erythrulose': {'mw': 120.10, 'carbon': 4},
+    'Sorbose': {'mw': 120.10, 'carbon': 4},
+    'Glucose': {'mw': 180.16, 'carbon': 6},
+    'Sorbose': {'mw': 180.16, 'carbon': 6},
+    'Tagatose': {'mw': 180.16, 'carbon': 6},
+    'Gulose': {'mw': 180.16, 'carbon': 6},
+    'Altrose': {'mw': 180.16, 'carbon': 6},
+    'Allose': {'mw': 180.16, 'carbon': 6},
+    'Mannose': {'mw': 180.16, 'carbon': 6},
+    'Galactose': {'mw': 180.16, 'carbon': 6},
+    'Idose': {'mw': 180.16, 'carbon': 6},
+    'Fructose': {'mw': 180.16, 'carbon': 6},
+    'Psychose': {'mw': 180.16, 'carbon': 6},
+    'Talose': {'mw': 180.16, 'carbon': 6},
 }
 
 def get_carbon_fraction(name):
@@ -30,56 +37,56 @@ def get_carbon_fraction(name):
     return db['carbon'] * 12 / db['mw']
 
 def export_to_excel(results, c4_response, gald_response):
-    """导出结果到Excel"""
+    """Export results to Excel"""
     output = BytesIO()
     
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        # 汇总表
+        # Summary sheet
         summary_data = []
         for i, r in enumerate(results, 1):
             summary_data.append({
-                '排名': i,
-                '酶': r['酶'],
-                '碳得率_%': r['碳得率%'],
-                '转化率_%': r['转化率%'],
-                '产物碳_mgC_mL': r['产物碳'],
-                'GALD碳_mgC_mL': r['GALD碳'],
+                'Rank': i,
+                'Enzyme': r['enzyme'],
+                'Carbon_Yield_%': r['yield_pct'],
+                'Conversion_%': r['conversion_pct'],
+                'Product_Carbon_mgC_mL': r['product_carbon'],
+                'GALD_Carbon_mgC_mL': r['gald_carbon'],
             })
-        pd.DataFrame(summary_data).to_excel(writer, sheet_name='碳得率汇总', index=False)
+        pd.DataFrame(summary_data).to_excel(writer, sheet_name='Carbon_Yield_Summary', index=False)
         
-        # 各酶详细表
+        # Individual enzyme sheets
         for r in results:
-            sheet_name = r['酶'].replace(' ', '_')[:31]
+            sheet_name = r['enzyme'].replace(' ', '_')[:31]
             detail_data = []
             # GALD
             detail_data.append({
-                '物质': 'GALD(剩余)',
-                '类型': 'C2',
-                '峰面积': r.get('GALD峰面积', 0),
-                '浓度_mg_mL': r['GALD碳'] / (2*12/60.05),
-                '碳质量_mgC_mL': r['GALD碳'],
+                'Compound': 'GALD (Remaining)',
+                'Type': 'C2',
+                'Peak_Area': r.get('gald_peak', 0),
+                'Concentration_mg_mL': r['gald_carbon'] / (2*12/60.05),
+                'Carbon_Mass_mgC_mL': r['gald_carbon'],
             })
-            # 产物
-            for prod in r.get('产物详情', []):
+            # Products
+            for prod in r.get('products', []):
                 detail_data.append({
-                    '物质': prod['name'],
-                    '类型': 'C4',
-                    '峰面积': prod['peak'],
-                    '浓度_mg_mL': prod['peak'] / c4_response,
-                    '碳质量_mgC_mL': prod['carbon'],
+                    'Compound': prod['name'],
+                    'Type': 'C4',
+                    'Peak_Area': prod['peak'],
+                    'Concentration_mg_mL': prod['peak'] / c4_response,
+                    'Carbon_Mass_mgC_mL': prod['carbon'],
                 })
             pd.DataFrame(detail_data).to_excel(writer, sheet_name=sheet_name, index=False)
         
-        # 标准曲线
+        # Standard curves
         std_data = [
-            {'糖类型': 'C4', '响应因子': c4_response, '碳质量分数': 4*12/120.10},
-            {'糖类型': 'C2(GALD)', '响应因子': gald_response, '碳质量分数': 2*12/60.05},
+            {'Sugar_Type': 'C4', 'Response_Factor': c4_response, 'Carbon_Fraction': 4*12/120.10},
+            {'Sugar_Type': 'C2(GALD)', 'Response_Factor': gald_response, 'Carbon_Fraction': 2*12/60.05},
         ]
-        pd.DataFrame(std_data).to_excel(writer, sheet_name='标准曲线', index=False)
+        pd.DataFrame(std_data).to_excel(writer, sheet_name='Standard_Curves', index=False)
     
     return output.getvalue()
 
-# ============ 主界面 ============
+# ============ Main Interface ============
 st.title("🔬 CarbonOracle")
 
 st.markdown("""
@@ -89,7 +96,7 @@ st.markdown("""
 
 ---
 
-**使用说明 (User Guide):**
+**User Guide:**
 1. 📁 Upload an Excel file with your chromatographic data
 2. 📋 File must contain two sheets: "汇总" (Summary) and "反应数据" (Reaction Data)
 3. 📊 View and download calculation results
@@ -100,26 +107,26 @@ st.markdown("""
 - Substrate: GALD (Glyceraldehyde)
 """)
 
-uploaded_file = st.file_uploader("选择Excel文件", type=['xlsx', 'xls'])
+uploaded_file = st.file_uploader("Choose Excel File", type=['xlsx', 'xls'])
 
 if uploaded_file:
     try:
         xl = pd.ExcelFile(uploaded_file)
         
-        # 读取数据
+        # Read data
         summary_df = pd.read_excel(xl, sheet_name='汇总')
         reaction_df = pd.read_excel(xl, sheet_name='反应数据')
         
-        # 清理列名中的空格
+        # Clean column names
         summary_df.columns = summary_df.columns.str.strip()
         reaction_df.columns = reaction_df.columns.str.strip()
         
-        # ============ 构建标准曲线 ============
+        # ============ Build Standard Curves ============
         c4_mask = summary_df['4C标品名称'].notna() & ~summary_df['4C标品名称'].isin(['6C标品名称', '样品名称', '反应条件/体系'])
         c4_standards = summary_df[c4_mask]
         
         if len(c4_standards) == 0:
-            st.error("未找到C4糖标准品数据")
+            st.error("C4 sugar standard data not found")
             st.stop()
         
         c4_response = (c4_standards['峰面积'] / c4_standards['浓度（mg/ml）']).mean()
@@ -128,14 +135,14 @@ if uploaded_file:
         gald_row = summary_df[gald_mask]
         
         if len(gald_row) == 0:
-            st.error("未找到GALD标准品数据")
+            st.error("GALD standard data not found")
             st.stop()
         
         gald_response = gald_row['峰面积'].values[0] / gald_row['浓度（mg/ml）'].values[0]
         
-        st.success(f"标准曲线: C4响应因子={c4_response:.2f}, GALD响应因子={gald_response:.2f}")
+        st.success(f"Standard Curves: C4 Response Factor={c4_response:.2f}, GALD Response Factor={gald_response:.2f}")
         
-        # ============ 解析反应数据 ============
+        # ============ Parse Reaction Data ============
         reactions = {}
         current_enzyme = None
         
@@ -143,7 +150,7 @@ if uploaded_file:
             enzyme = row.get('酶名称')
             if pd.notna(enzyme) and str(enzyme).strip() != '':
                 current_enzyme = str(enzyme).strip()
-                reactions[current_enzyme] = {'产物': [], 'GALD': 0}
+                reactions[current_enzyme] = {'products': [], 'GALD': 0}
             
             substance = row.get('对应物质')
             if pd.notna(substance) and current_enzyme:
@@ -153,20 +160,20 @@ if uploaded_file:
                 if substance == 'GALD':
                     reactions[current_enzyme]['GALD'] = peak
                 else:
-                    reactions[current_enzyme]['产物'].append({'name': substance, 'peak': peak})
+                    reactions[current_enzyme]['products'].append({'name': substance, 'peak': peak})
         
         if not reactions:
-            st.error("未找到反应数据")
+            st.error("Reaction data not found")
             st.stop()
         
-        # ============ 计算碳得率 ============
+        # ============ Calculate Carbon Yield ============
         results = []
         for enzyme, data in reactions.items():
             gald_carbon = (data['GALD'] / gald_response) * (2 * 12 / 60.05)
             total_product_carbon = 0
             products = []
             
-            for prod in data['产物']:
+            for prod in data['products']:
                 cf = get_carbon_fraction(prod['name'])
                 conc = prod['peak'] / c4_response
                 carbon = conc * cf
@@ -177,31 +184,40 @@ if uploaded_file:
             yield_pct = (total_product_carbon / total) * 100 if total > 0 else 0
             
             results.append({
-                '酶': enzyme,
-                '碳得率%': round(yield_pct, 2),
-                '转化率%': round(100 - yield_pct, 2),
-                '产物碳': round(total_product_carbon, 4),
-                'GALD碳': round(gald_carbon, 4),
-                '产物列表': ', '.join([p['name'] for p in products]),
-                '产物详情': products,
-                'GALD峰面积': data['GALD'],
+                'enzyme': enzyme,
+                'yield_pct': round(yield_pct, 2),
+                'conversion_pct': round(100 - yield_pct, 2),
+                'product_carbon': round(total_product_carbon, 4),
+                'gald_carbon': round(gald_carbon, 4),
+                'product_list': ', '.join([p['name'] for p in products]),
+                'products': products,
+                'gald_peak': data['GALD'],
             })
         
-        results.sort(key=lambda x: x['碳得率%'], reverse=True)
+        results.sort(key=lambda x: x['yield_pct'], reverse=True)
         
-        # ============ 显示结果 ============
-        st.subheader("📊 碳得率排名")
-        st.dataframe(pd.DataFrame(results))
+        # ============ Display Results ============
+        st.subheader("📊 Carbon Yield Ranking")
         
-        st.subheader("📈 可视化")
+        display_df = pd.DataFrame([{
+            'Rank': i+1,
+            'Enzyme': r['enzyme'],
+            'Carbon_Yield_%': r['yield_pct'],
+            'Conversion_%': r['conversion_pct'],
+            'Product_Carbon': r['product_carbon'],
+            'GALD_Carbon': r['gald_carbon'],
+        } for i, r in enumerate(results)])
+        st.dataframe(display_df)
+        
+        st.subheader("📈 Visualization")
         df_chart = pd.DataFrame(results)
-        st.bar_chart(df_chart.set_index('酶')['碳得率%'])
+        st.bar_chart(df_chart.set_index('enzyme')['yield_pct'])
         
-        st.subheader("📋 详细数据")
+        st.subheader("📋 Product Details")
         for r in results:
-            st.write(f"**{r['酶']}**: {r['产物列表']}")
+            st.write(f"**{r['enzyme']}**: {r['product_list']}")
         
-        # ============ 下载按钮 ============
+        # ============ Download Button ============
         st.divider()
         col1, col2 = st.columns(2)
         
@@ -209,17 +225,17 @@ if uploaded_file:
             excel_data = export_to_excel(results, c4_response, gald_response)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             st.download_button(
-                label="📥 下载Excel结果",
+                label="📥 Download Excel Results",
                 data=excel_data,
-                file_name=f"碳得率结果_{timestamp}.xlsx",
+                file_name=f"Carbon_Yield_Results_{timestamp}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
         
         with col2:
-            st.info("点击按钮下载完整计算结果，包含汇总表、详细数据和标准曲线参数")
+            st.info("Click to download complete results including summary, details, and standard curves")
             
     except Exception as e:
-        st.error(f"处理出错: {e}")
+        st.error(f"Error: {e}")
 
 else:
-    st.info("请上传Excel文件开始分析")
+    st.info("Upload an Excel file to begin analysis")
