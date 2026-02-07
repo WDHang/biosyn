@@ -403,7 +403,6 @@ if uploaded_file:
                         'Peak_Area': round(prod['peak'], 6),
                         'Concentration': round(conc, 6),
                         'Carbon_Mass': round(prod['carbon'], 6),
-                        'RT_Deviation': f"{prod['rt_deviation']:+.6f}" if prod.get('rt_deviation') else '-'
                     })
                 st.dataframe(pd.DataFrame(product_data))
         
