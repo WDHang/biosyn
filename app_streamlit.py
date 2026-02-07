@@ -229,33 +229,37 @@ if uploaded_file:
             if (not pd.notna(substance) or str(substance).strip() == '') and has_rt and current_enzyme:
                 rt_val = row.get(reaction_col_map.get('rt')) or row.get('Retention_Time')
                 if pd.notna(rt_val):
-                    substance, ref_rt = match_compound_by_rt(rt_val, rt_ref, tolerance=0.15)
-                    if substance:
+                    matched, ref_rt = match_compound_by_rt(rt_val, rt_ref, tolerance=0.15)
+                    substance = matched
+                    if matched:
                         is_predicted = True
                         rt_deviation = round(float(rt_val) - ref_rt, 3)
+                    else:
+                        substance = 'Unknown'
+                        rt_deviation = None
 
             if pd.notna(substance) and current_enzyme:
                 peak = row[reaction_col_map['area']]
                 substance = str(substance).strip()
 
+                rt_val = row.get(reaction_col_map.get('rt')) or row.get('Retention_Time')
+                rt_predictions.append({
+                    'Enzyme': current_enzyme,
+                    'RT': rt_val,
+                    'Predicted_Compound': substance if substance != 'Unknown' else None,
+                    'RT_Deviation': f"{rt_deviation:+.3f}" if rt_deviation else '-',
+                    'Peak_Area': peak
+                })
+
                 if substance == 'GALD':
                     reactions[current_enzyme]['GALD'] = peak
-                else:
+                elif substance != 'Unknown':
                     reactions[current_enzyme]['products'].append({
-                        'name': substance, 
+                        'name': substance,
                         'peak': peak,
                         'is_predicted': is_predicted,
                         'rt_deviation': rt_deviation
                     })
-                    if is_predicted:
-                        rt_val = row.get(reaction_col_map.get('rt')) or row.get('Retention_Time')
-                        rt_predictions.append({
-                            'Enzyme': current_enzyme,
-                            'RT': rt_val,
-                            'Predicted_Compound': substance,
-                            'RT_Deviation': f"{rt_deviation:+.3f}" if rt_deviation else '-',
-                            'Peak_Area': peak
-                        })
 
         if not reactions:
             st.error("Reaction data not found")
