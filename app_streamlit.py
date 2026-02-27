@@ -35,6 +35,16 @@ MOLECULAR_DB = {
 # Substrate database for carbon yield calculation
 SUBSTRATE_DB = {
     'GALD': {'mw': 60.05, 'carbon': 2, 'c_type': 'C2'},
+    'Erythrose': {'mw': 120.10, 'carbon': 4, 'c_type': 'C4'},
+    'Threose': {'mw': 120.10, 'carbon': 4, 'c_type': 'C4'},
+    'Erythrulose': {'mw': 120.10, 'carbon': 4, 'c_type': 'C4'},
+    'Glucose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
+    'Fructose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
+    'Mannose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
+    'Galactose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
+}
+SUBSTRATE_DB = {
+    'GALD': {'mw': 60.05, 'carbon': 2, 'c_type': 'C2'},
     'Glucose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
     'Fructose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
     'Mannose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
@@ -368,6 +378,21 @@ if uploaded_file:
         )
         
         # Calculate response factor for selected substrate
+        substrate_info = SUBSTRATE_DB[selected_substrate]
+        
+        # C4 substrates use C4 response factor
+        if substrate_info['c_type'] == 'C4':
+            substrate_response = c4_response
+            st.info(f"{selected_substrate} is a C4 sugar, using C4 response factor.")
+        else:
+            substrate_mask = standard_df[summary_col_map['compound']] == selected_substrate
+            substrate_row = standard_df[substrate_mask]
+            
+            if len(substrate_row) == 0:
+                st.warning(f"{selected_substrate} standard data not found. Using C4 response factor as fallback.")
+                substrate_response = c4_response
+            else:
+                substrate_response = substrate_row[summary_col_map['area']].values[0] / substrate_row[summary_col_map['conc']].values[0]
         substrate_info = SUBSTRATE_DB[selected_substrate]
         substrate_mask = standard_df[summary_col_map['compound']] == selected_substrate
         substrate_row = standard_df[substrate_mask]
