@@ -40,15 +40,6 @@ SUBSTRATE_DB = {
     'Erythrulose': {'mw': 120.10, 'carbon': 4, 'c_type': 'C4'},
     'Glucose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
     'Fructose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
-    'Mannose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
-    'Galactose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
-}
-SUBSTRATE_DB = {
-    'GALD': {'mw': 60.05, 'carbon': 2, 'c_type': 'C2'},
-    'Glucose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
-    'Fructose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
-    'Mannose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
-    'Galactose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
 }
 
 def get_substrate_list():
@@ -62,6 +53,9 @@ def get_sugar_type(name):
     c4_sugars = ['Erythrose', 'Threose', 'Erythrulose', '赤藓糖', '苏阿糖', '赤藓酮糖']
     if name in c4_sugars:
         return 'C4'
+    return 'C6'
+
+def build_rt_reference(standard_df, compound_col='Compound', rt_col='Retention_Time'):
     return 'C6'
 
 def build_rt_reference(standard_df, compound_col='Compound', rt_col='Retention_Time'):
