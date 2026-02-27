@@ -198,26 +198,6 @@ st.markdown("""
 """)
 
 uploaded_file = st.file_uploader("Choose Excel File", type=['xlsx', 'xls'])
-st.title("🔬 CarbonOracle")
-
-st.markdown("""
-**Carbon Yield Calculator for Enzymatic Reactions**
-
-*Upload your LC/GC data and calculate carbon yield automatically.*
-
----
-**User Guide:**
-1. 📁 Upload an Excel file with your chromatographic data
-2. 📋 Sheet names: "Standard Curve" and "Reaction Data"
-3. 📊 View and download calculation results
-
-**Supported Compounds:**
-- C4 Sugars: Erythrose, Threose, Erythrulose
-- C6 Sugars: Glucose, Fructose, Mannose, Sorbose, Allose, and more
-- Substrate: GALD (Glyceraldehyde), Glucose, Fructose, Mannose, Galactose
-""")
-
-uploaded_file = st.file_uploader("Choose Excel File", type=['xlsx', 'xls'])
 
 if uploaded_file:
     try:
