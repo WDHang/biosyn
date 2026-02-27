@@ -303,6 +303,43 @@ if uploaded_file:
             rt_deviation = None
             rt_val = None
 
+            # If no compound but has substrate, use substrate directly
+            if has_substrate and (not has_compound or (pd.notna(substance) and str(substance).strip() == '')):
+                substrate_in_row = row.get(reaction_col_map.get('substrate'))
+                if pd.notna(substrate_in_row):
+                    substance = str(substrate_in_row).strip()
+            elif not has_compound or (pd.notna(substance) and str(substance).strip() == ''):
+                # Do RT matching
+                rt_val = row.get(rxn_rt_col)
+                if pd.notna(rt_val):
+                    best_match = None
+                    best_dev = None
+                    for compound, match in rt_matches.items():
+                        dev = float(rt_val) - match['std_rt']
+                        abs_dev = abs(dev)
+                        if abs_dev <= tolerance:
+                            if best_match is None or abs_dev < best_dev:
+                                best_match = compound
+                                best_dev = abs_dev
+                                rt_deviation = round(dev, 6)
+                    if best_match:
+                        substance = best_match
+                        is_predicted = True
+                    else:
+                        substance = 'Unknown'
+            if has_substrate:
+                substrate_val = row.get(reaction_col_map.get('substrate'))
+                if pd.notna(substrate_val):
+                    current_substrate = str(substrate_val).strip()
+            
+            if pd.notna(enzyme) and str(enzyme).strip() != '':
+                current_enzyme = str(enzyme).strip()
+
+            substance = row.get(reaction_col_map.get('compound')) if has_compound else None
+            is_predicted = False
+            rt_deviation = None
+            rt_val = None
+
             if not has_compound or (pd.notna(substance) and str(substance).strip() == ''):
                 rt_val = row.get(rxn_rt_col)
                 if pd.notna(rt_val):
