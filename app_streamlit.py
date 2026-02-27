@@ -239,6 +239,18 @@ if uploaded_file:
                 reaction_col_map['rt'] = col
             elif 'compound' in col_lower or '物质' in col or '对应物质' in col:
                 reaction_col_map['compound'] = col
+            elif 'substrate' in col_lower or '底物' in col:
+                reaction_col_map['substrate'] = col
+        for col in reaction_df.columns:
+            col_lower = str(col).lower().strip()
+            if 'enzyme' in col_lower or '酶名称' in col:
+                reaction_col_map['enzyme'] = col
+            elif 'area' in col_lower or '峰面积' in col:
+                reaction_col_map['area'] = col
+            elif 'rt' in col_lower or 'retention' in col_lower or '保留时间' in col:
+                reaction_col_map['rt'] = col
+            elif 'compound' in col_lower or '物质' in col or '对应物质' in col:
+                reaction_col_map['compound'] = col
         
         # ============ Scan RT Matches from Reaction Data ============
         rt_time_col = 'Retention_Time'
@@ -266,17 +278,25 @@ if uploaded_file:
             st.stop()
 
         has_compound = 'compound' in reaction_col_map
+        has_substrate = 'substrate' in reaction_col_map
         tolerance = 0.15
 
         reactions = {}
         current_enzyme = None
+        current_substrate = None  # Store substrate per enzyme
         rt_predictions = []
 
         for idx, row in reaction_df.iterrows():
             enzyme = row.get(reaction_col_map.get('enzyme'))
+            
+            # Check for substrate in the row
+            if has_substrate:
+                substrate_val = row.get(reaction_col_map.get('substrate'))
+                if pd.notna(substrate_val):
+                    current_substrate = str(substrate_val).strip()
+            
             if pd.notna(enzyme) and str(enzyme).strip() != '':
                 current_enzyme = str(enzyme).strip()
-                reactions[current_enzyme] = {'products': [], 'substrate_peaks': {}}
 
             substance = row.get(reaction_col_map.get('compound')) if has_compound else None
             is_predicted = False
@@ -350,31 +370,57 @@ if uploaded_file:
 
         c4_response = (c4_standards[summary_col_map['area']] / c4_standards[summary_col_map['conc']]).mean()
         
-        # ============ Substrate Selection for Carbon Yield ============
+        # ============ Substrate Detection ============
+        has_substrate_col = 'substrate' in reaction_col_map
+        
         st.markdown("---")
-        st.subheader("🎯 Select Substrate for Carbon Yield Calculation")
         
-        # Detect available substrates in the reaction data
-        available_substrates = set()
-        for enzyme, data in reactions.items():
-            available_substrates.update(data['substrate_peaks'].keys())
+        if has_substrate_col:
+            # Auto-detect substrate from data
+            substrates_in_data = set()
+            for idx, row in reaction_df.iterrows():
+                substrate = row.get(reaction_col_map.get('substrate'))
+                if pd.notna(substrate):
+                    substrates_in_data.add(str(substrate).strip())
+            
+            if substrates_in_data:
+                if len(substrates_in_data) == 1:
+                    selected_substrate = list(substrates_in_data)[0]
+                    st.success(f"Detected substrate: {selected_substrate}")
+                else:
+                    st.warning(f"Multiple substrates detected: {substrates_in_data}. Using the first one.")
+                    selected_substrate = list(substrates_in_data)[0]
+            else:
+                st.error("Substrate column found but no valid substrate values.")
+                st.stop()
+        else:
+            # Show dropdown for substrate selection
+            st.subheader("🎯 Select Substrate for Carbon Yield Calculation")
+            
+            available_substrates = set()
+            for enzyme, data in reactions.items():
+                available_substrates.update(data['substrate_peaks'].keys())
+            
+            substrate_options = get_substrate_list()
+            
+            if available_substrates:
+                st.info(f"Detected substrates in data: {', '.join(available_substrates)}")
+            
+            selected_substrate = st.selectbox(
+                "Choose substrate for carbon yield calculation:",
+                options=substrate_options,
+                index=substrate_options.index('GALD') if 'GALD' in substrate_options else 0
+            )
         
-        substrate_options = get_substrate_list()
-        
-        if available_substrates:
-            st.info(f"Detected substrates in data: {', '.join(available_substrates)}")
-        
-        # Substrate selector
-        selected_substrate = st.selectbox(
-            "Choose substrate for carbon yield calculation:",
-            options=substrate_options,
-            index=substrate_options.index('GALD') if 'GALD' in substrate_options else 0
-        )
+        # Get substrate info
+        if selected_substrate in SUBSTRATE_DB:
+            substrate_info = SUBSTRATE_DB[selected_substrate]
+        else:
+            # Unknown substrate - use default C4 properties
+            substrate_info = {'mw': 120.10, 'carbon': 4, 'c_type': 'C4'}
+            st.warning(f"{selected_substrate} not in database, assuming C4 sugar properties.")
         
         # Calculate response factor for selected substrate
-        substrate_info = SUBSTRATE_DB[selected_substrate]
-        
-        # C4 substrates use C4 response factor
         if substrate_info['c_type'] == 'C4':
             substrate_response = c4_response
             st.info(f"{selected_substrate} is a C4 sugar, using C4 response factor.")
@@ -387,16 +433,7 @@ if uploaded_file:
                 substrate_response = c4_response
             else:
                 substrate_response = substrate_row[summary_col_map['area']].values[0] / substrate_row[summary_col_map['conc']].values[0]
-        substrate_info = SUBSTRATE_DB[selected_substrate]
-        substrate_mask = standard_df[summary_col_map['compound']] == selected_substrate
-        substrate_row = standard_df[substrate_mask]
-        
-        if len(substrate_row) == 0:
-            st.warning(f"{selected_substrate} standard data not found. Using default response factor.")
-            substrate_response = c4_response  # Fallback to C4 response
-        else:
-            substrate_response = substrate_row[summary_col_map['area']].values[0] / substrate_row[summary_col_map['conc']].values[0]
-        
+
         st.success("Standard Curves calculated successfully!")
         st.markdown(f"""
         <div style="display: flex; gap: 40px; margin-top: 16px;">
