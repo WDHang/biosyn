@@ -569,7 +569,20 @@ if uploaded_file:
 
         st.altair_chart(chart, use_container_width=True)
         
-        # ============ Download Button ============
+        with col1:
+            # Handle unknown substrate for Excel export
+            if selected_substrate in SUBSTRATE_DB:
+                substrate_info_dict = {'name': selected_substrate, **SUBSTRATE_DB[selected_substrate]}
+            else:
+                substrate_info_dict = {'name': selected_substrate, 'mw': 120.10, 'carbon': 4, 'c_type': 'C4'}
+            excel_data = export_to_excel(results, c4_response, substrate_info_dict, substrate_response)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            st.download_button(
+                label="📥 Download Excel Results",
+                data=excel_data,
+                file_name=f"Carbon_Yield_Results_{timestamp}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
         st.divider()
         col1, col2 = st.columns(2)
         with col1:
