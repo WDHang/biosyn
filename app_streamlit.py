@@ -262,6 +262,8 @@ if uploaded_file:
             substance = row.get(reaction_col_map.get('compound')) if has_compound else None
             is_predicted = False
             rt_deviation = None
+            rt_val = None
+
 
             if not has_compound or (pd.notna(substance) and str(substance).strip() == ''):
                 rt_val = row.get(rxn_rt_col)
