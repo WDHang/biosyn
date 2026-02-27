@@ -161,7 +161,43 @@ def export_to_excel(results, c4_response, substrate_info, substrate_response):
     
     return output.getvalue()
 
-# ============ Main Interface ============
+st.title("🔬 CarbonOracle")
+
+st.markdown("""
+**Carbon Yield Calculator for Enzymatic Reactions**
+
+*Upload your LC/GC data and calculate carbon yield automatically.*
+
+---
+
+**📋 Excel File Format:**
+
+**Sheet 1: Standard Curve** (required)
+| Column | Description |
+|--------|-------------|
+| Compound | Compound name (e.g., Erythrose, Threose, GALD, Glucose...) |
+| Retention_Time | Retention time in minutes |
+| Peak_Area | Peak area from chromatograph |
+| Concentration | Concentration in mg/ml |
+
+**Sheet 2: Reaction Data** (required)
+| Column | Description |
+|--------|-------------|
+| Enzyme | Enzyme name (fill in first row only, leave blank for subsequent peaks) |
+| substrate | Substrate name for carbon yield calculation (optional, if not provided will show dropdown) |
+| Retention_Time | Retention time in minutes |
+| Peak_Area | Peak area from chromatograph |
+| Compound | Compound name (optional, will do RT matching if empty) |
+
+---
+
+**📌 Supported Compounds:**
+- C4 Sugars: Erythrose, Threose, Erythrulose
+- C6 Sugars: Glucose, Fructose, Mannose, Galactose, Sorbose, etc.
+- C2: GALD (Glyceraldehyde)
+""")
+
+uploaded_file = st.file_uploader("Choose Excel File", type=['xlsx', 'xls'])
 st.title("🔬 CarbonOracle")
 
 st.markdown("""
