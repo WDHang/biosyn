@@ -618,10 +618,7 @@ if uploaded_file:
                 substrate_info_dict = {'name': selected_substrate, **SUBSTRATE_DB[selected_substrate]}
             else:
                 substrate_info_dict = {'name': selected_substrate, 'mw': 120.10, 'carbon': 4, 'c_type': 'C4'}
-            excel_data = export_to_excel(results, c4_response, substrate_info_dict, substrate_response)
-        with col1:
-            substrate_info_dict = {'name': selected_substrate, **SUBSTRATE_DB[selected_substrate]}
-            excel_data = export_to_excel(results, c4_response, substrate_info_dict, substrate_response)
+
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             st.download_button(
                 label="📥 Download Excel Results",
