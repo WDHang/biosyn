@@ -32,6 +32,18 @@ MOLECULAR_DB = {
     'Talose': {'mw': 180.16, 'carbon': 6},
 }
 
+# Substrate database for carbon yield calculation
+SUBSTRATE_DB = {
+    'GALD': {'mw': 60.05, 'carbon': 2, 'c_type': 'C2'},
+    'Glucose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
+    'Fructose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
+    'Mannose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
+    'Galactose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
+}
+
+def get_substrate_list():
+    return list(SUBSTRATE_DB.keys())
+
 def get_carbon_fraction(name):
     db = MOLECULAR_DB.get(name, {'mw': 120.10, 'carbon': 4})
     return db['carbon'] * 12 / db['mw']
@@ -92,9 +104,11 @@ def get_peak_by_rt(reaction_df, target_rt, tolerance=0.15, rxn_rt_col='Retention
             return row.get(area_col)
     return None
 
-def export_to_excel(results, c4_response, gald_response):
+def export_to_excel(results, c4_response, substrate_info, substrate_response):
     """Export results to Excel"""
     output = BytesIO()
+    substrate_name = substrate_info['name']
+    substrate_c_type = substrate_info['c_type']
     
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         # Summary sheet
@@ -103,10 +117,11 @@ def export_to_excel(results, c4_response, gald_response):
             summary_data.append({
                 'Rank': i,
                 'Enzyme': r['enzyme'],
+                'Substrate': r['substrate'],
                 'Carbon_Yield_%': r['yield_pct'],
                 'Conversion_%': r['conversion_pct'],
                 'Product_Carbon_mgC_mL': r['product_carbon'],
-                'GALD_Carbon_mgC_mL': r['gald_carbon'],
+                f'{substrate_name}_Carbon_mgC_mL': r['substrate_carbon'],
             })
         pd.DataFrame(summary_data).to_excel(writer, sheet_name='Carbon_Yield_Summary', index=False)
         
@@ -114,13 +129,13 @@ def export_to_excel(results, c4_response, gald_response):
         for r in results:
             sheet_name = r['enzyme'].replace(' ', '_')[:31]
             detail_data = []
-            # GALD
+            # Substrate
             detail_data.append({
-                'Compound': 'GALD (Remaining)',
-                'Type': 'C2',
-                'Peak_Area': r.get('gald_peak', 0),
-                'Concentration_mg_mL': r['gald_carbon'] / (2*12/60.05),
-                'Carbon_Mass_mgC_mL': r['gald_carbon'],
+                'Compound': f'{substrate_name} (Remaining)',
+                'Type': substrate_c_type,
+                'Peak_Area': r.get('substrate_peak', 0),
+                'Concentration_mg_mL': r['substrate_carbon'] / (substrate_info['carbon'] * 12 / substrate_info['mw']),
+                'Carbon_Mass_mgC_mL': r['substrate_carbon'],
             })
             # Products
             for prod in r.get('products', []):
@@ -136,7 +151,7 @@ def export_to_excel(results, c4_response, gald_response):
         # Standard curves
         std_data = [
             {'Sugar_Type': 'C4', 'Response_Factor': c4_response, 'Carbon_Fraction': 4*12/120.10},
-            {'Sugar_Type': 'C2(GALD)', 'Response_Factor': gald_response, 'Carbon_Fraction': 2*12/60.05},
+            {'Sugar_Type': substrate_c_type, 'Response_Factor': substrate_response, 'Carbon_Fraction': substrate_info['carbon']*12/substrate_info['mw']},
         ]
         pd.DataFrame(std_data).to_excel(writer, sheet_name='Standard_Curves', index=False)
     
@@ -159,7 +174,7 @@ st.markdown("""
 **Supported Compounds:**
 - C4 Sugars: Erythrose, Threose, Erythrulose
 - C6 Sugars: Glucose, Fructose, Mannose, Sorbose, Allose, and more
-- Substrate: GALD (Glyceraldehyde)
+- Substrate: GALD (Glyceraldehyde), Glucose, Fructose, Mannose, Galactose
 """)
 
 uploaded_file = st.file_uploader("Choose Excel File", type=['xlsx', 'xls'])
@@ -220,7 +235,7 @@ if uploaded_file:
                 reaction_col_map['rt'] = col
             elif 'compound' in col_lower or '物质' in col or '对应物质' in col:
                 reaction_col_map['compound'] = col
-
+        
         # ============ Scan RT Matches from Reaction Data ============
         rt_time_col = 'Retention_Time'
         if rt_time_col not in standard_df.columns:
@@ -257,13 +272,12 @@ if uploaded_file:
             enzyme = row.get(reaction_col_map.get('enzyme'))
             if pd.notna(enzyme) and str(enzyme).strip() != '':
                 current_enzyme = str(enzyme).strip()
-                reactions[current_enzyme] = {'products': [], 'GALD': 0}
+                reactions[current_enzyme] = {'products': [], 'substrate_peaks': {}}
 
             substance = row.get(reaction_col_map.get('compound')) if has_compound else None
             is_predicted = False
             rt_deviation = None
             rt_val = None
-
 
             if not has_compound or (pd.notna(substance) and str(substance).strip() == ''):
                 rt_val = row.get(rxn_rt_col)
@@ -296,8 +310,9 @@ if uploaded_file:
                     'Peak_Area': round(peak, 6)
                 })
 
-                if substance == 'GALD':
-                    reactions[current_enzyme]['GALD'] = peak
+                # Check if substance is a known substrate
+                if substance in SUBSTRATE_DB:
+                    reactions[current_enzyme]['substrate_peaks'][substance] = peak
                 elif substance != 'Unknown':
                     reactions[current_enzyme]['products'].append({
                         'name': substance,
@@ -331,15 +346,38 @@ if uploaded_file:
 
         c4_response = (c4_standards[summary_col_map['area']] / c4_standards[summary_col_map['conc']]).mean()
         
-        gald_mask = standard_df[summary_col_map['compound']] == 'GALD'
-        gald_row = standard_df[gald_mask]
+        # ============ Substrate Selection for Carbon Yield ============
+        st.markdown("---")
+        st.subheader("🎯 Select Substrate for Carbon Yield Calculation")
         
-        if len(gald_row) == 0:
-            st.error("GALD standard data not found")
-            st.stop()
+        # Detect available substrates in the reaction data
+        available_substrates = set()
+        for enzyme, data in reactions.items():
+            available_substrates.update(data['substrate_peaks'].keys())
         
-        gald_response = gald_row[summary_col_map['area']].values[0] / gald_row[summary_col_map['conc']].values[0]
-
+        substrate_options = get_substrate_list()
+        
+        if available_substrates:
+            st.info(f"Detected substrates in data: {', '.join(available_substrates)}")
+        
+        # Substrate selector
+        selected_substrate = st.selectbox(
+            "Choose substrate for carbon yield calculation:",
+            options=substrate_options,
+            index=substrate_options.index('GALD') if 'GALD' in substrate_options else 0
+        )
+        
+        # Calculate response factor for selected substrate
+        substrate_info = SUBSTRATE_DB[selected_substrate]
+        substrate_mask = standard_df[summary_col_map['compound']] == selected_substrate
+        substrate_row = standard_df[substrate_mask]
+        
+        if len(substrate_row) == 0:
+            st.warning(f"{selected_substrate} standard data not found. Using default response factor.")
+            substrate_response = c4_response  # Fallback to C4 response
+        else:
+            substrate_response = substrate_row[summary_col_map['area']].values[0] / substrate_row[summary_col_map['conc']].values[0]
+        
         st.success("Standard Curves calculated successfully!")
         st.markdown(f"""
         <div style="display: flex; gap: 40px; margin-top: 16px;">
@@ -348,15 +386,19 @@ if uploaded_file:
                 <span style="font-size: 18px; font-weight: 600;">{c4_response:.6f}</span>
             </div>
             <div>
-                <span style="color: #666; font-size: 14px;">GALD Response Factor</span><br>
-                <span style="font-size: 18px; font-weight: 600;">{gald_response:.6f}</span>
+                <span style="color: #666; font-size: 14px;">{selected_substrate} Response Factor</span><br>
+                <span style="font-size: 18px; font-weight: 600;">{substrate_response:.6f}</span>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
+        # ============ Calculate Carbon Yield ============
         results = []
         for enzyme, data in reactions.items():
-            gald_carbon = (data['GALD'] / gald_response) * (2 * 12 / 60.05)
+            # Get substrate peak for selected substrate
+            substrate_peak = data['substrate_peaks'].get(selected_substrate, 0)
+            substrate_carbon = (substrate_peak / substrate_response) * (substrate_info['carbon'] * 12 / substrate_info['mw'])
+            
             total_product_carbon = 0
             products = []
             
@@ -367,7 +409,7 @@ if uploaded_file:
                 total_product_carbon += carbon
                 products.append({'name': prod['name'], 'peak': prod['peak'], 'carbon': carbon})
             
-            total = gald_carbon + total_product_carbon
+            total = substrate_carbon + total_product_carbon
             yield_pct = (total_product_carbon / total) * 100 if total > 0 else 0
             
             results.append({
@@ -375,10 +417,11 @@ if uploaded_file:
                 'yield_pct': round(yield_pct, 2),
                 'conversion_pct': round(100 - yield_pct, 2),
                 'product_carbon': round(total_product_carbon, 4),
-                'gald_carbon': round(gald_carbon, 4),
+                'substrate_carbon': round(substrate_carbon, 4),
+                'substrate': selected_substrate,
                 'product_list': ', '.join([p['name'] for p in products]),
                 'products': products,
-                'gald_peak': data['GALD'],
+                'substrate_peak': substrate_peak,
             })
         
         results.sort(key=lambda x: x['yield_pct'], reverse=True)
@@ -389,10 +432,11 @@ if uploaded_file:
         display_df = pd.DataFrame([{
             'Rank': i+1,
             'Enzyme': r['enzyme'],
+            'Substrate': r['substrate'],
             'Carbon_Yield_%': r['yield_pct'],
             'Conversion_%': r['conversion_pct'],
             'Product_Carbon': r['product_carbon'],
-            'GALD_Carbon': r['gald_carbon'],
+            'Substrate_Carbon': r['substrate_carbon'],
         } for i, r in enumerate(results)])
         st.dataframe(display_df)
         
@@ -437,7 +481,8 @@ if uploaded_file:
         col1, col2 = st.columns(2)
         
         with col1:
-            excel_data = export_to_excel(results, c4_response, gald_response)
+            substrate_info_dict = {'name': selected_substrate, **SUBSTRATE_DB[selected_substrate]}
+            excel_data = export_to_excel(results, c4_response, substrate_info_dict, substrate_response)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             st.download_button(
                 label="📥 Download Excel Results",
