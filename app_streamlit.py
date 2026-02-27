@@ -572,7 +572,13 @@ if uploaded_file:
         # ============ Download Button ============
         st.divider()
         col1, col2 = st.columns(2)
-        
+        with col1:
+            # Handle unknown substrate for Excel export
+            if selected_substrate in SUBSTRATE_DB:
+                substrate_info_dict = {'name': selected_substrate, **SUBSTRATE_DB[selected_substrate]}
+            else:
+                substrate_info_dict = {'name': selected_substrate, 'mw': 120.10, 'carbon': 4, 'c_type': 'C4'}
+            excel_data = export_to_excel(results, c4_response, substrate_info_dict, substrate_response)
         with col1:
             substrate_info_dict = {'name': selected_substrate, **SUBSTRATE_DB[selected_substrate]}
             excel_data = export_to_excel(results, c4_response, substrate_info_dict, substrate_response)
