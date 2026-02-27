@@ -51,14 +51,7 @@ SUBSTRATE_DB = {
     'Talose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
     'Psicose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
 }
-SUBSTRATE_DB = {
-    'GALD': {'mw': 60.05, 'carbon': 2, 'c_type': 'C2'},
-    'Erythrose': {'mw': 120.10, 'carbon': 4, 'c_type': 'C4'},
-    'Threose': {'mw': 120.10, 'carbon': 4, 'c_type': 'C4'},
-    'Erythrulose': {'mw': 120.10, 'carbon': 4, 'c_type': 'C4'},
-    'Glucose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
-    'Fructose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
-}
+
 
 def get_substrate_list():
     return list(SUBSTRATE_DB.keys())
