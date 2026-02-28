@@ -51,71 +51,9 @@ SUBSTRATE_DB = {
     'Psicose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
 }
 
-COMPOUND_ALIASES = {
-    'Psychose': 'Psicose',
-}
-
-def get_substrate_list():
-    return list(SUBSTRATE_DB.keys())
-
-def normalize_compound_name(name):
-    if pd.isna(name):
-        return None
-    normalized = str(name).strip()
-    return COMPOUND_ALIASES.get(normalized, normalized)
-
 def get_carbon_fraction(name):
     db = MOLECULAR_DB.get(name, {'mw': 120.10, 'carbon': 4})
     return db['carbon'] * 12 / db['mw']
-
-def get_sugar_type(name):
-    c4_sugars = ['Erythrose', 'Threose', 'Erythrulose']
-    if name in c4_sugars:
-        return 'C4'
-    return 'C6'
-
-def build_rt_reference(standard_df, compound_col='Compound', rt_col='Retention_Time'):
-    rt_ref = {}
-    for _, row in standard_df.iterrows():
-        compound = row.get(compound_col)
-        rt = row.get(rt_col)
-        if pd.notna(rt) and pd.notna(compound):
-            rt_ref[round(float(rt), 6)] = str(compound).strip()
-    return rt_ref
-
-def scan_rt_matches(standard_df, reaction_df, std_compound_col='Compound', std_rt_col='Retention_Time', 
-                    rxn_rt_col='Retention_Time', tolerance=0.15):
-    import numpy as np
-    
-    std_rts = []
-    for _, row in standard_df.iterrows():
-        compound = row.get(std_compound_col)
-        rt = row.get(std_rt_col)
-        if pd.notna(compound) and pd.notna(rt):
-            std_rts.append({'compound': str(compound).strip(), 'std_rt': round(float(rt), 6)})
-    
-    rxn_rts = reaction_df[rxn_rt_col].dropna().tolist()
-    rxn_rts_array = np.array(rxn_rts)
-    
-    matches = {}
-    for std in std_rts:
-        compound = std['compound']
-        std_rt = std['std_rt']
-        
-        deviations = np.abs(rxn_rts_array - std_rt)
-        min_dev = np.min(deviations) if len(deviations) > 0 else None
-        closest_idx = np.argmin(deviations) if len(deviations) > 0 else None
-        closest_rt = rxn_rts[closest_idx] if closest_idx is not None else None
-        
-        matches[compound] = {
-            'std_rt': std_rt,
-            'matched_rt': round(closest_rt, 6) if closest_rt is not None else None,
-            'deviation': round(closest_rt - std_rt, 6) if closest_rt is not None else None,
-            'abs_deviation': round(min_dev, 6) if min_dev is not None else None,
-            'is_match': min_dev <= tolerance if min_dev is not None else False
-        }
-    
-    return matches
 
 st.title("🔬 CarbonOracle")
 
@@ -129,20 +67,10 @@ st.markdown("""
 **📋 Excel File Format:**
 
 **Sheet 1: Standard Curve** (required)
-| Column | Description |
-|--------|-------------|
-| Compound | Compound name (e.g., Erythrose, Threose, GALD, Glucose...) |
-| Retention_Time | Retention time in minutes |
-| Peak_Area | Peak area from chromatograph |
-| Concentration | Concentration in mg/ml |
+- Compound, Retention_Time, Peak_Area, Concentration
 
 **Sheet 2: Reaction Data** (required)
-| Column | Description |
-|--------|-------------|
-| Enzyme | Enzyme name |
-| Substrate | Substrate name for carbon yield calculation |
-| Retention_Time | Retention time in minutes |
-| Peak_Area | Peak area from chromatograph |
+- Enzyme, Substrate, Retention_Time, Peak_Area
 
 ---
 """)
@@ -154,11 +82,8 @@ if uploaded_file:
         xl = pd.ExcelFile(uploaded_file)
         
         # Read data
-        standard_names = ['Standard Curve', '汇总', 'Summary']
-        reaction_names = ['Reaction Data', 'Reaction', '反应数据']
-        
         standard_df = None
-        for name in standard_names:
+        for name in ['Standard Curve', '汇总', 'Summary']:
             if name in xl.sheet_names:
                 standard_df = pd.read_excel(xl, sheet_name=name)
                 break
@@ -167,7 +92,7 @@ if uploaded_file:
             st.stop()
         
         reaction_df = None
-        for name in reaction_names:
+        for name in ['Reaction Data', 'Reaction', '反应数据']:
             if name in xl.sheet_names:
                 reaction_df = pd.read_excel(xl, sheet_name=name)
                 break
@@ -204,32 +129,31 @@ if uploaded_file:
             elif 'substrate' in col_lower or '底物' in col:
                 reaction_col_map['substrate'] = col
         
-        # Find RT columns
-        rt_time_col = 'Retention_Time'
-        if rt_time_col not in standard_df.columns:
-            for col in standard_df.columns:
-                if 'rt' in str(col).lower() or 'retention' in str(col).lower():
-                    rt_time_col = col
-                    break
-        
-        rxn_rt_col = 'Retention_Time'
-        for col in reaction_df.columns:
-            if 'rt' in str(col).lower() or 'retention' in str(col).lower():
-                rxn_rt_col = col
-                break
-        
-        # Scan RT matches
-        rt_matches = scan_rt_matches(standard_df, reaction_df,
-                                     std_compound_col=summary_col_map.get('compound', 'Compound'),
-                                     std_rt_col=rt_time_col,
-                                     rxn_rt_col=rxn_rt_col,
-                                     tolerance=0.15)
-        
-        # Parse reaction data - SIMPLIFIED
+        # Check required columns
         if 'enzyme' not in reaction_col_map or 'area' not in reaction_col_map:
             st.error("Required columns not found: Enzyme Name, Peak Area")
             st.stop()
         
+        # Build RT reference
+        rt_ref = {}
+        for _, row in standard_df.iterrows():
+            compound = row.get(summary_col_map.get('compound', 'Compound'))
+            rt = row.get('Retention_Time')
+            if pd.notna(rt) and pd.notna(compound):
+                rt_ref[round(float(rt), 6)] = str(compound).strip()
+        
+        # C4 response factor
+        c4_sugar_names = ['Erythrose', 'Threose', 'Erythrulose']
+        c4_mask = standard_df[summary_col_map['compound']].isin(c4_sugar_names)
+        c4_standards = standard_df[c4_mask]
+        
+        if len(c4_standards) == 0:
+            st.error("C4 sugar standard data not found")
+            st.stop()
+        
+        c4_response = (c4_standards[summary_col_map['area']] / c4_standards[summary_col_map['conc']]).mean()
+        
+        # Parse reaction data
         has_compound = 'compound' in reaction_col_map
         has_substrate = 'substrate' in reaction_col_map
         tolerance = 0.15
@@ -245,14 +169,14 @@ if uploaded_file:
             
             # Update substrate
             if has_substrate and pd.notna(substrate_val):
-                current_substrate = normalize_compound_name(substrate_val)
+                current_substrate = str(substrate_val).strip()
             
             # Update enzyme
             if pd.notna(enzyme) and str(enzyme).strip() != '':
                 current_enzyme = str(enzyme).strip()
                 reactions.setdefault(current_enzyme, {
                     'substrate': current_substrate,
-                    'peaks': []  # List of (compound, peak, is_substrate)
+                    'peaks': []
                 })
             elif current_enzyme:
                 reactions.setdefault(current_enzyme, {
@@ -263,24 +187,25 @@ if uploaded_file:
             if not current_enzyme:
                 continue
             
-            # Get compound from column or RT matching
+            # Get compound
             compound_from_col = None
             if has_compound:
                 compound_val = row.get(reaction_col_map.get('compound'))
                 if pd.notna(compound_val):
-                    compound_from_col = normalize_compound_name(compound_val)
+                    compound_from_col = str(compound_val).strip()
             
-            rt_val = row.get(rxn_rt_col)
-            is_predicted = False
-            rt_deviation = None
+            rt_val = row.get(reaction_col_map.get('rt', 'Retention_Time'))
             
+            # RT matching
             if compound_from_col:
                 pred_compound = compound_from_col
+                is_predicted = False
+                rt_deviation = None
             elif pd.notna(rt_val):
                 best_match = None
                 best_dev = None
-                for compound, match in rt_matches.items():
-                    dev = float(rt_val) - match['std_rt']
+                for compound, std_rt in rt_ref.items():
+                    dev = float(rt_val) - std_rt
                     abs_dev = abs(dev)
                     if abs_dev <= tolerance:
                         if best_match is None or abs_dev < best_dev:
@@ -288,38 +213,32 @@ if uploaded_file:
                             best_dev = abs_dev
                             rt_deviation = round(dev, 6)
                 if best_match:
-                    pred_compound = normalize_compound_name(best_match)
+                    pred_compound = best_match
                     is_predicted = True
                 else:
                     pred_compound = 'Unknown'
+                    is_predicted = True
+                    rt_deviation = None
             else:
-                pred_compound = None
-            
-            if not pred_compound:
                 continue
             
             peak = row[reaction_col_map['area']]
-            
-            # Determine if this peak is substrate or product
-            is_substrate = (pred_compound == current_substrate)
+            is_substrate_peak = (pred_compound == current_substrate)
             
             # Record peak
             reactions[current_enzyme]['peaks'].append({
                 'compound': pred_compound,
                 'peak': peak,
-                'is_substrate': is_substrate,
-                'rt': rt_val,
-                'is_predicted': is_predicted,
-                'rt_deviation': rt_deviation
+                'is_substrate': is_substrate_peak
             })
             
-            # For display
+            # For display - Substrate after Enzyme
             rt_predictions.append({
                 'Enzyme': current_enzyme,
+                'Substrate': current_substrate,
                 'RT': round(float(rt_val), 6) if pd.notna(rt_val) else None,
                 'pred_compound': pred_compound if pred_compound != 'Unknown' else None,
-                'Substrate': current_substrate,
-                'Is_Substrate': is_substrate,
+                'Is_Substrate': is_substrate_peak,
                 'RT_Deviation': f"{rt_deviation:+.6f}" if rt_deviation is not None else '-',
                 'Peak_Area': round(peak, 6)
             })
@@ -334,17 +253,6 @@ if uploaded_file:
             pred_df = pd.DataFrame(rt_predictions)
             st.dataframe(pred_df)
         
-        # ============ Calculate Carbon Yield ============
-        c4_sugar_names = ['Erythrose', 'Threose', 'Erythrulose']
-        c4_mask = standard_df[summary_col_map['compound']].isin(c4_sugar_names)
-        c4_standards = standard_df[c4_mask]
-        
-        if len(c4_standards) == 0:
-            st.error("C4 sugar standard data not found")
-            st.stop()
-        
-        c4_response = (c4_standards[summary_col_map['area']] / c4_standards[summary_col_map['conc']]).mean()
-        
         st.markdown("---")
         
         # Auto-detect substrates
@@ -353,8 +261,7 @@ if uploaded_file:
             for idx, row in reaction_df.iterrows():
                 substrate = row.get(reaction_col_map.get('substrate'))
                 if pd.notna(substrate):
-                    substrates_in_data.add(normalize_compound_name(substrate))
-            
+                    substrates_in_data.add(str(substrate).strip())
             if substrates_in_data:
                 st.success(f"Detected substrates: {', '.join(substrates_in_data)}")
         
@@ -364,7 +271,6 @@ if uploaded_file:
             substrate = data['substrate']
             peaks = data['peaks']
             
-            # Calculate carbon
             substrate_carbon = 0
             product_carbon = 0
             products = []
