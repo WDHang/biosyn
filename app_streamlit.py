@@ -7,7 +7,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import altair as alt
-from io import BytesIO
 from datetime import datetime
 
 st.set_page_config(page_title="CarbonOracle", page_icon="🦥", layout="wide")
@@ -30,25 +29,6 @@ MOLECULAR_DB = {
     'Idose': {'mw': 180.16, 'carbon': 6},
     'Talose': {'mw': 180.16, 'carbon': 6},
     'Psicose': {'mw': 180.16, 'carbon': 6},
-}
-
-SUBSTRATE_DB = {
-    'GALD': {'mw': 60.05, 'carbon': 2, 'c_type': 'C2'},
-    'Erythrose': {'mw': 120.10, 'carbon': 4, 'c_type': 'C4'},
-    'Threose': {'mw': 120.10, 'carbon': 4, 'c_type': 'C4'},
-    'Erythrulose': {'mw': 120.10, 'carbon': 4, 'c_type': 'C4'},
-    'Glucose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
-    'Fructose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
-    'Mannose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
-    'Galactose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
-    'Sorbose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
-    'Tagatose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
-    'Gulose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
-    'Altrose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
-    'Allose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
-    'Idose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
-    'Talose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
-    'Psicose': {'mw': 180.16, 'carbon': 6, 'c_type': 'C6'},
 }
 
 def get_carbon_fraction(name):
@@ -134,7 +114,7 @@ if uploaded_file:
             st.error("Required columns not found: Enzyme Name, Peak Area")
             st.stop()
         
-        # Build RT reference
+        # Build RT reference: {RT_value: compound_name}
         rt_ref = {}
         for _, row in standard_df.iterrows():
             compound = row.get(summary_col_map.get('compound', 'Compound'))
@@ -187,7 +167,7 @@ if uploaded_file:
             if not current_enzyme:
                 continue
             
-            # Get compound
+            # Get compound from column or RT matching
             compound_from_col = None
             if has_compound:
                 compound_val = row.get(reaction_col_map.get('compound'))
@@ -205,8 +185,6 @@ if uploaded_file:
                 best_match = None
                 best_dev = None
                 for std_rt, compound in rt_ref.items():
-                    dev = float(rt_val) - std_rt
-                    dev = float(rt_val) - compound
                     dev = float(rt_val) - std_rt
                     abs_dev = abs(dev)
                     if abs_dev <= tolerance:
@@ -267,7 +245,7 @@ if uploaded_file:
             if substrates_in_data:
                 st.success(f"Detected substrates: {', '.join(substrates_in_data)}")
         
-        # Calculate carbon yield for each enzyme
+        # Calculate carbon yield
         results = []
         for enzyme, data in reactions.items():
             substrate = data['substrate']
