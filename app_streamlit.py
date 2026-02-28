@@ -408,7 +408,7 @@ if uploaded_file:
                 rt_predictions.append({
                     'Enzyme': current_enzyme,
                     'RT': round(float(rt_val), 6) if pd.notna(rt_val) else None,
-                    'Compound': substance if substance != 'Unknown' else None,
+                    'pred_compound': substance if substance != 'Unknown' else None,
                     'RT_Deviation': f"{rt_deviation:+.6f}" if rt_deviation is not None else '-',
                     'Peak_Area': round(peak, 6)
                 })
