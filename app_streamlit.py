@@ -204,7 +204,9 @@ if uploaded_file:
             elif pd.notna(rt_val):
                 best_match = None
                 best_dev = None
-                for compound, std_rt in rt_ref.items():
+                for std_rt, compound in rt_ref.items():
+                    dev = float(rt_val) - std_rt
+                    dev = float(rt_val) - compound
                     dev = float(rt_val) - std_rt
                     abs_dev = abs(dev)
                     if abs_dev <= tolerance:
