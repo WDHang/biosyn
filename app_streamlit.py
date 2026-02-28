@@ -348,6 +348,44 @@ if uploaded_file:
             if not current_enzyme:
                 continue
 
+            # Get compound prediction using RT matching
+            # 1. First check if Compound column has value
+            compound_from_col = None
+            if has_compound:
+                compound_val = row.get(reaction_col_map.get('compound'))
+                if pd.notna(compound_val):
+                    compound_from_col = normalize_compound_name(compound_val)
+            
+            # 2. If no compound from column, do RT matching
+            rt_val = row.get(rxn_rt_col)
+            is_predicted = False
+            rt_deviation = None
+            substance = None
+            
+            if compound_from_col:
+                substance = compound_from_col
+            elif pd.notna(rt_val):
+                best_match = None
+                best_dev = None
+                for compound, match in rt_matches.items():
+                    dev = float(rt_val) - match['std_rt']
+                    abs_dev = abs(dev)
+                    if abs_dev <= tolerance:
+                        if best_match is None or abs_dev < best_dev:
+                            best_match = compound
+                            best_dev = abs_dev
+                            rt_deviation = round(dev, 6)
+                if best_match:
+                    substance = normalize_compound_name(best_match)
+                    is_predicted = True
+                else:
+                    substance = 'Unknown'
+
+            # Skip if no substance
+            if not substance:
+                continue
+                continue
+
             # Get compound from Compound column if exists
             compound_from_col = normalize_compound_name(row.get(reaction_col_map.get('compound'))) if has_compound else None
             
