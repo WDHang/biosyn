@@ -426,9 +426,11 @@ if uploaded_file:
                     'Enzyme': current_enzyme,
                     'RT': round(float(rt_val), 6) if pd.notna(rt_val) else None,
                     'pred_compound': substance if substance != 'Unknown' else None,
+                    'Substrate': current_substrate,
                     'RT_Deviation': f"{rt_deviation:+.6f}" if rt_deviation is not None else '-',
                     'Peak_Area': round(peak, 6)
                 })
+
 
                 # Check if substance is a known substrate
                 if substance in SUBSTRATE_DB:
