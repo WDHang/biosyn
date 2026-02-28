@@ -416,39 +416,7 @@ if uploaded_file:
                     substance = 'Unknown'
             else:
                 substance = None
-            substance = normalize_compound_name(row.get(reaction_col_map.get('compound'))) if has_compound else None
-            is_predicted = False
-            rt_deviation = None
-            rt_val = None
 
-            substance = normalize_compound_name(row.get(reaction_col_map.get('compound'))) if has_compound else None
-            is_predicted = False
-            rt_deviation = None
-            rt_val = None
-
-            if not substance and has_substrate:
-                substrate_in_row = row.get(reaction_col_map.get('substrate'))
-                if pd.notna(substrate_in_row):
-                    substance = normalize_compound_name(substrate_in_row)
-
-            if not substance:
-                rt_val = row.get(rxn_rt_col)
-                if pd.notna(rt_val):
-                    best_match = None
-                    best_dev = None
-                    for compound, match in rt_matches.items():
-                        dev = float(rt_val) - match['std_rt']
-                        abs_dev = abs(dev)
-                        if abs_dev <= tolerance:
-                            if best_match is None or abs_dev < best_dev:
-                                best_match = compound
-                                best_dev = abs_dev
-                                rt_deviation = round(dev, 6)
-                    if best_match:
-                        substance = normalize_compound_name(best_match)
-                        is_predicted = True
-                    else:
-                        substance = 'Unknown'
 
             if pd.notna(substance):
                 peak = row[reaction_col_map['area']]
