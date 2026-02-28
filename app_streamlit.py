@@ -53,8 +53,20 @@ SUBSTRATE_DB = {
 }
 
 
+COMPOUND_ALIASES = {
+    'Psychose': 'Psicose',
+}
+
+
 def get_substrate_list():
     return list(SUBSTRATE_DB.keys())
+
+
+def normalize_compound_name(name):
+    if pd.isna(name):
+        return None
+    normalized = str(name).strip()
+    return COMPOUND_ALIASES.get(normalized, normalized)
 
 def get_carbon_fraction(name):
     db = MOLECULAR_DB.get(name, {'mw': 120.10, 'carbon': 4})
@@ -315,28 +327,38 @@ if uploaded_file:
 
         for idx, row in reaction_df.iterrows():
             enzyme = row.get(reaction_col_map.get('enzyme'))
-            
-            # Check for substrate in the row
+
             if has_substrate:
                 substrate_val = row.get(reaction_col_map.get('substrate'))
                 if pd.notna(substrate_val):
-                    current_substrate = str(substrate_val).strip()
-            
+                    current_substrate = normalize_compound_name(substrate_val)
+
             if pd.notna(enzyme) and str(enzyme).strip() != '':
                 current_enzyme = str(enzyme).strip()
+                reactions.setdefault(
+                    current_enzyme,
+                    {'substrate': current_substrate, 'substrate_peaks': {}, 'products': []}
+                )
+            elif current_enzyme:
+                reactions.setdefault(
+                    current_enzyme,
+                    {'substrate': current_substrate, 'substrate_peaks': {}, 'products': []}
+                )
 
-            substance = row.get(reaction_col_map.get('compound')) if has_compound else None
+            if not current_enzyme:
+                continue
+
+            substance = normalize_compound_name(row.get(reaction_col_map.get('compound'))) if has_compound else None
             is_predicted = False
             rt_deviation = None
             rt_val = None
 
-            # If no compound but has substrate, use substrate directly
-            if has_substrate and (not has_compound or (pd.notna(substance) and str(substance).strip() == '')):
+            if not substance and has_substrate:
                 substrate_in_row = row.get(reaction_col_map.get('substrate'))
                 if pd.notna(substrate_in_row):
-                    substance = str(substrate_in_row).strip()
-            elif not has_compound or (pd.notna(substance) and str(substance).strip() == ''):
-                # Do RT matching
+                    substance = normalize_compound_name(substrate_in_row)
+
+            if not substance:
                 rt_val = row.get(rxn_rt_col)
                 if pd.notna(rt_val):
                     best_match = None
@@ -350,43 +372,12 @@ if uploaded_file:
                                 best_dev = abs_dev
                                 rt_deviation = round(dev, 6)
                     if best_match:
-                        substance = best_match
-                        is_predicted = True
-                    else:
-                        substance = 'Unknown'
-            if has_substrate:
-                substrate_val = row.get(reaction_col_map.get('substrate'))
-                if pd.notna(substrate_val):
-                    current_substrate = str(substrate_val).strip()
-            
-            if pd.notna(enzyme) and str(enzyme).strip() != '':
-                current_enzyme = str(enzyme).strip()
-
-            substance = row.get(reaction_col_map.get('compound')) if has_compound else None
-            is_predicted = False
-            rt_deviation = None
-            rt_val = None
-
-            if not has_compound or (pd.notna(substance) and str(substance).strip() == ''):
-                rt_val = row.get(rxn_rt_col)
-                if pd.notna(rt_val):
-                    best_match = None
-                    best_dev = None
-                    for compound, match in rt_matches.items():
-                        dev = float(rt_val) - match['std_rt']
-                        abs_dev = abs(dev)
-                        if abs_dev <= tolerance:
-                            if best_match is None or abs_dev < best_dev:
-                                best_match = compound
-                                best_dev = abs_dev
-                                rt_deviation = round(dev, 6)
-                    if best_match:
-                        substance = best_match
+                        substance = normalize_compound_name(best_match)
                         is_predicted = True
                     else:
                         substance = 'Unknown'
 
-            if pd.notna(substance) and current_enzyme:
+            if pd.notna(substance):
                 peak = row[reaction_col_map['area']]
                 substance = str(substance).strip()
 
@@ -445,7 +436,7 @@ if uploaded_file:
             for idx, row in reaction_df.iterrows():
                 substrate = row.get(reaction_col_map.get('substrate'))
                 if pd.notna(substrate):
-                    substrates_in_data.add(str(substrate).strip())
+                    substrates_in_data.add(normalize_compound_name(substrate))
             
             if substrates_in_data:
                 if len(substrates_in_data) == 1:
@@ -596,21 +587,6 @@ if uploaded_file:
 
         st.altair_chart(chart, use_container_width=True)
         
-        with col1:
-            # Handle unknown substrate for Excel export
-            if selected_substrate in SUBSTRATE_DB:
-                substrate_info_dict = {'name': selected_substrate, **SUBSTRATE_DB[selected_substrate]}
-            else:
-                substrate_info_dict = {'name': selected_substrate, 'mw': 120.10, 'carbon': 4, 'c_type': 'C4'}
-            excel_data = export_to_excel(results, c4_response, substrate_info_dict, substrate_response)
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            st.download_button(
-                label="📥 Download Excel Results",
-                data=excel_data,
-                file_name=f"Carbon_Yield_Results_{timestamp}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-        st.divider()
         col1, col2 = st.columns(2)
         with col1:
             # Handle unknown substrate for Excel export
@@ -618,6 +594,7 @@ if uploaded_file:
                 substrate_info_dict = {'name': selected_substrate, **SUBSTRATE_DB[selected_substrate]}
             else:
                 substrate_info_dict = {'name': selected_substrate, 'mw': 120.10, 'carbon': 4, 'c_type': 'C4'}
+            excel_data = export_to_excel(results, c4_response, substrate_info_dict, substrate_response)
 
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             st.download_button(
